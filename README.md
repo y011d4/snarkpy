@@ -1,6 +1,8 @@
 # snarkpy
 
-A zk-SNARK implemented in Python compatible with [snarkjs](https://github.com/iden3/snarkjs)
+A zk-SNARK implemented in Python & Rust compatible with [snarkjs](https://github.com/iden3/snarkjs)
+
+⚠️ It's not fully tested, so don't use it for production.
 
 ## Install
 
