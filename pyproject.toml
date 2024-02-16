@@ -1,0 +1,34 @@
+# [build-system]
+# requires = ["maturin>=1.4,<2.0"]
+# build-backend = "maturin"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[project]
+name = "snarkpy"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dynamic = ["version"]
+
+[tool.poetry]
+name = "snarkpy"
+version = "0.1.0"
+description = ""
+authors = ["y011d4 <yoiida333@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.11"
+py-ecc = "^7.0.0"
+setuptools-rust = "^1.8.1"
+maturin = "^1.4.0"
+ipython = "^8.21.0"
+
+[tool.poetry.scripts]
+snarkpy = "snarkpy.cli:main"
