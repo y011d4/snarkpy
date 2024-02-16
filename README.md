@@ -7,15 +7,17 @@ A zk-SNARK implemented in Python & Rust compatible with [snarkjs](https://github
 ## Install
 
 ```sh
-# Install poetry if not installed
-curl -sSL https://install.python-poetry.org | python3 -
+# Install maturin if not installed
+pipx install maturin
 
 # Install rustup if not installed
 $ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
 git clone https://github.com/y011d4/snarkpy.git
-poetry install
-poetry run maturin develop
+cd snarkpy
+pytyhon3 -m venv venv
+source venv/bin/activate
+maturin develop --release
 ```
 
 ## Usage
