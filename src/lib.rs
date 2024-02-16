@@ -1,5 +1,6 @@
-mod hash;
 mod field;
+mod hash;
+use crate::field::{GFElement, GF};
 use crate::hash::keccak as _keccak;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
@@ -17,8 +18,17 @@ fn register_hash_module(py: Python, parent_module: &PyModule) -> PyResult<()> {
     Ok(())
 }
 
+fn register_field_module(py: Python, parent_module: &PyModule) -> PyResult<()> {
+    let field_module = PyModule::new(py, "field")?;
+    field_module.add_class::<GF>()?;
+    field_module.add_class::<GFElement>()?;
+    parent_module.add_submodule(field_module)?;
+    Ok(())
+}
+
 #[pymodule]
-fn snarkpy(py: Python, m: &PyModule) -> PyResult<()> {
+fn _snarkpy(py: Python, m: &PyModule) -> PyResult<()> {
     register_hash_module(py, m)?;
+    register_field_module(py, m)?;
     Ok(())
 }

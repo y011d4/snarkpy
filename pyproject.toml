@@ -1,32 +1,39 @@
-# [build-system]
-# requires = ["maturin>=1.4,<2.0"]
-# build-backend = "maturin"
-
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["maturin>=1.4,<2.0"]
+build-backend = "maturin"
 
 [project]
 name = "snarkpy"
-requires-python = ">=3.8"
+description = ""
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+  {name = "y011d4"},
+  {email = "yoiida333@gmail.com"}
+]
+maintainers = [
+  {name = "y011d4"},
+  {email = "yoiida333@gmail.com"}
+]
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
+dependencies = [
+    "py-ecc>=7.0.0",
+]
 
-[tool.poetry]
-name = "snarkpy"
-version = "0.1.0"
-description = ""
-authors = ["y011d4 <yoiida333@gmail.com>"]
-readme = "README.md"
+[project.optional-dependencies]
+dev = [
+    "ipython>=8.21.0",
+]
 
-[tool.poetry.dependencies]
-python = "^3.11"
-py-ecc = "^7.0.0"
-maturin = "^1.4.0"
-
-[tool.poetry.scripts]
+[project.scripts]
 snarkpy = "snarkpy.cli:main"
+
+[tool.maturin]
+python-source = "python"
+module-name = "snarkpy._snarkpy"
+features = ["pyo3/extension-module"]

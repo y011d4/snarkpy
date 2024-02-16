@@ -8,7 +8,7 @@ from py_ecc import optimized_bn128 as bn128
 from py_ecc.optimized_bn128 import FQ
 
 from snarkpy.elliptic import exp_tau
-from snarkpy.field import GF, GFElement, calc_omega
+from snarkpy.field import GF, GFElement
 from snarkpy.hash import keccak
 from snarkpy.polynomial import Polynomial
 from snarkpy.plonk.parse import parse_wtns, parse_zkey
@@ -125,7 +125,7 @@ def prove(
 
     Fr = GF(zkey.r, 2**256)
 
-    omega = Fr(calc_omega(zkey.power))
+    omega = Fr.nth_root_of_unity(2**zkey.power)
 
     zh_coeffs = [Fr(0)] * zkey.domain_size * 4
     zh_coeffs[0] = Fr(-1)

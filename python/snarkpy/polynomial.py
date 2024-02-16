@@ -1,7 +1,7 @@
 from math import ceil, log2
 from typing import Optional, Sequence, TypeVar, Union
 
-from snarkpy.field import GF, GFElement, calc_omega
+from snarkpy.field import GF, GFElement
 
 
 class Polynomial:
@@ -76,7 +76,7 @@ class Polynomial:
         Fp = self._Fp
         n = len(coeffs)
         assert n & (n - 1) == 0, "n must be power of 2"
-        omegas = [Fp(calc_omega(i)) for i in range(int(log2(n)) + 1)]
+        omegas = [Fp.nth_root_of_unity(2**i) for i in range(int(log2(n)) + 1)]
         return self._fft(coeffs, omegas)
 
     def _fft(
@@ -110,7 +110,7 @@ class Polynomial:
         n = len(evals)
         assert n & (n - 1) == 0, "n must be power of 2"
         ninv = Fp(n) ** -1
-        omega_invs = [Fp(calc_omega(i)) ** -1 for i in range(int(log2(n)) + 1)]
+        omega_invs = [Fp.nth_root_of_unity(2**i) ** -1 for i in range(int(log2(n)) + 1)]
         return [c * ninv for c in self._fft(evals, omega_invs)]
 
     def _calc_evals_if_necessary(self) -> None:
@@ -152,7 +152,7 @@ class Polynomial:
                 evals=[e1 + e2 for e1, e2 in zip(a._evals, b._evals)],
             )
         elif isinstance(other, GFElement):
-            assert self._p == other._gf.p
+            assert self._p == other.gf.p
             if self._coeffs is not None:
                 return Polynomial(
                     self._p, coeffs=[self._coeffs[0] + other] + list(self._coeffs[1:])
@@ -174,7 +174,7 @@ class Polynomial:
                 evals=[e1 - e2 for e1, e2 in zip(a._evals, b._evals)],
             )
         elif isinstance(other, GFElement):
-            assert self._p == other._gf.p
+            assert self._p == other.gf.p
             if self._coeffs is not None:
                 return Polynomial(
                     self._p, coeffs=[self._coeffs[0] - other] + list(self._coeffs[1:])
@@ -196,7 +196,7 @@ class Polynomial:
                 evals=[e1 * e2 for e1, e2 in zip(a._evals, b._evals)],
             )
         elif isinstance(other, GFElement):
-            assert self._p == other._gf.p
+            assert self._p == other.gf.p
             if self._coeffs is not None:
                 return Polynomial(self._p, coeffs=[c * other for c in self._coeffs])
             elif self._evals is not None:

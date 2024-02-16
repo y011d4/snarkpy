@@ -51,3 +51,7 @@ def main():
     parser_plonk_verify.set_defaults(func=verify)
     args = parser.parse_args()
     args.func(args)
+
+
+if __name__ == "__main__":
+    main()
