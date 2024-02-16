@@ -26,9 +26,7 @@ readme = "README.md"
 [tool.poetry.dependencies]
 python = "^3.11"
 py-ecc = "^7.0.0"
-setuptools-rust = "^1.8.1"
 maturin = "^1.4.0"
-ipython = "^8.21.0"
 
 [tool.poetry.scripts]
 snarkpy = "snarkpy.cli:main"
