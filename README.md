@@ -18,7 +18,7 @@ poetry install
 poetry run maturin develop
 ```
 
-### Usage
+## Usage
 
 First, prepare `circuit_final.zkey`, `witness.wtns` and `verification_key.json` by referring to the [README in snarkjs](https://github.com/iden3/snarkjs).
 
@@ -30,8 +30,25 @@ snarkpy plonk prove circuit_final.zkey witness.wtns proof.json public.json
 snarkpy plonk verify circuit_final.zkey witness.wtns proof.json public.json
 ```
 
-### TODO
+## TODO
 
 - Implement other algorithms than PLONK.
 - Implement EC by myself and replace py_ecc.
 - Replace mathematical implementation like Polynomial or GF with implementation Rust using PyO3.
+
+## License
+
+Licensed under either of
+
+ * Apache License, Version 2.0
+   ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license
+   ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
+
+## Contribution
+
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in the work by you, as defined in the Apache-2.0 license, shall be
+dual licensed as above, without any additional terms or conditions.
