@@ -28,6 +28,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "ipython>=8.21.0",
+    "py-spy>=0.3.14",
 ]
 
 [project.scripts]

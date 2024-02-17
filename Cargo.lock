@@ -234,6 +234,7 @@ version = "0.1.0"
 dependencies = [
  "hex",
  "num-bigint",
+ "once_cell",
  "pyo3",
  "tiny-keccak",
 ]

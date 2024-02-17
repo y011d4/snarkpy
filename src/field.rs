@@ -1,9 +1,11 @@
 use num_bigint::BigInt;
+use once_cell::sync::Lazy;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
 use std::collections::HashMap;
 use std::str::FromStr;
+use std::sync::Mutex;
 
 fn xgcd(a: BigInt, b: BigInt) -> (BigInt, BigInt, BigInt) {
     let zero = BigInt::from_str("0").unwrap();
@@ -15,8 +17,11 @@ fn xgcd(a: BigInt, b: BigInt) -> (BigInt, BigInt, BigInt) {
     }
 }
 
+pub static NTH_ROOT_OF_UNITY_CACHE: Lazy<Mutex<HashMap<(BigInt, BigInt), GFElement>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
+
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GF {
     #[pyo3(get)]
     p: BigInt,
@@ -25,18 +30,19 @@ pub struct GF {
     r_mask: BigInt,
     r2: BigInt,
     p_prime: BigInt,
-    nth_root_of_unity_cache: HashMap<BigInt, BigInt>,
+    // nth_root_of_unity_cache: HashMap<BigInt, GFElement>,
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GFElement {
     #[pyo3(get)]
     gf: GF,
     value: BigInt,
 }
 
-enum Value {
+#[derive(Clone, Debug)]
+pub enum Value {
     BigInt(BigInt),
     GFElement(GFElement),
 }
@@ -62,7 +68,7 @@ impl GF {
             r_mask: &r - 1,
             r2: r.modpow(&BigInt::from_str("2").unwrap(), &p),
             p_prime: -p_inv,
-            nth_root_of_unity_cache: HashMap::new(),
+            // nth_root_of_unity_cache: HashMap::new(),
         })
     }
 
@@ -117,11 +123,15 @@ impl GF {
         a0
     }
 
-    fn one(&self) -> GFElement {
+    pub fn one(&self) -> GFElement {
         GFElement::new(BigInt::from_str("1").unwrap(), self.clone(), false)
     }
 
-    fn __call__(&self, value: Value) -> GFElement {
+    pub fn zero(&self) -> GFElement {
+        GFElement::new(BigInt::from_str("0").unwrap(), self.clone(), false)
+    }
+
+    pub fn __call__(&self, value: Value) -> GFElement {
         match value {
             Value::BigInt(value) => GFElement::new(value, self.clone(), false),
             Value::GFElement(value) => value,
@@ -146,11 +156,11 @@ impl GF {
         format!("F_{}", self.p)
     }
 
-    fn __str__(&self) -> String {
+    pub fn __str__(&self) -> String {
         format!("F_{}", self.p)
     }
 
-    fn __eq__(&self, other: Self) -> bool {
+    pub fn __eq__(&self, other: Self) -> bool {
         self.p == other.p && self.r == other.r
     }
 
@@ -179,13 +189,19 @@ impl GF {
         value.gf.__eq__(self.clone())
     }
 
-    fn nth_root_of_unity(&mut self, n: BigInt) -> PyResult<GFElement> {
-        if self.nth_root_of_unity_cache.contains_key(&n) {
-            return Ok(GFElement::new(
-                self.nth_root_of_unity_cache[&n].clone(),
-                self.clone(),
-                false,
-            ));
+    pub fn nth_root_of_unity(&mut self, n: BigInt) -> PyResult<GFElement> {
+        if n.sign() == num_bigint::Sign::Minus {
+            return Err(PyValueError::new_err("n must be positive"));
+        }
+        // if self.nth_root_of_unity_cache.contains_key(&n) {
+        let cache_key = (self.p.clone(), n.clone());
+        if NTH_ROOT_OF_UNITY_CACHE
+            .lock()
+            .unwrap()
+            .contains_key(&cache_key)
+        {
+            // return Ok(self.nth_root_of_unity_cache[&n].clone());
+            return Ok(NTH_ROOT_OF_UNITY_CACHE.lock().unwrap()[&cache_key].clone());
         }
         let p_1 = &self.p - BigInt::from_str("1").unwrap();
         if &p_1 % &n != BigInt::from_str("0").unwrap() {
@@ -193,8 +209,10 @@ impl GF {
         }
         let k = self.__call__(Value::BigInt(BigInt::from_str("5").unwrap()));
         let res = k.__pow__(&p_1 / n.clone(), None)?;
-        self.nth_root_of_unity_cache
-            .insert(n.clone(), res.value.clone());
+        NTH_ROOT_OF_UNITY_CACHE
+            .lock()
+            .unwrap()
+            .insert(cache_key, res.clone());
         Ok(res)
     }
 }
@@ -202,7 +220,7 @@ impl GF {
 #[pymethods]
 impl GFElement {
     #[new]
-    fn new(value: BigInt, gf: GF, is_montgomery: bool) -> Self {
+    pub fn new(value: BigInt, gf: GF, is_montgomery: bool) -> Self {
         if is_montgomery {
             GFElement { gf, value }
         } else {
@@ -213,7 +231,7 @@ impl GFElement {
         }
     }
 
-    fn __add__(&self, other: Self) -> PyResult<Self> {
+    pub fn __add__(&self, other: Self) -> PyResult<Self> {
         if !self.gf.__eq__(other.gf) {
             return Err(PyValueError::new_err("GF mismatch"));
         }
@@ -224,7 +242,7 @@ impl GFElement {
         ))
     }
 
-    fn __sub__(&self, other: Self) -> PyResult<Self> {
+    pub fn __sub__(&self, other: Self) -> PyResult<Self> {
         if !self.gf.__eq__(other.gf) {
             return Err(PyValueError::new_err("GF mismatch"));
         }
@@ -235,7 +253,7 @@ impl GFElement {
         ))
     }
 
-    fn __mul__(&self, other: Self) -> PyResult<Self> {
+    pub fn __mul__(&self, other: Self) -> PyResult<Self> {
         if !self.gf.__eq__(other.gf) {
             return Err(PyValueError::new_err("GF mismatch"));
         }
@@ -250,7 +268,7 @@ impl GFElement {
         GFElement::new(self.gf.inv(self.value.clone()), self.gf.clone(), true)
     }
 
-    fn __truediv__(&self, other: Self) -> PyResult<Self> {
+    pub fn __truediv__(&self, other: Self) -> PyResult<Self> {
         if !self.gf.__eq__(other.gf) {
             return Err(PyValueError::new_err("GF mismatch"));
         }
@@ -261,7 +279,7 @@ impl GFElement {
         ))
     }
 
-    fn __pow__(&self, other: BigInt, p: Option<BigInt>) -> PyResult<Self> {
+    pub fn __pow__(&self, other: BigInt, p: Option<BigInt>) -> PyResult<Self> {
         match p {
             Some(p) => {
                 if p != self.gf.p {
@@ -281,7 +299,7 @@ impl GFElement {
         self.gf.from_montgomery(self.value.clone())
     }
 
-    fn __eq__(&self, other: Self) -> bool {
+    pub fn __eq__(&self, other: Self) -> bool {
         self.gf.__eq__(other.gf) && self.value == other.value
     }
 
@@ -289,7 +307,7 @@ impl GFElement {
         format!("{} in {}", self.__int__(), self.gf.__str__())
     }
 
-    fn __str__(&self) -> String {
+    pub fn __str__(&self) -> String {
         format!("{}", self.__int__())
     }
 
