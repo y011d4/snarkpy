@@ -1,7 +1,6 @@
-use tiny_keccak;
 use tiny_keccak::Hasher;
 
-pub fn keccak<'a>(data: &'a [u8]) -> [u8; 32] {
+pub fn keccak(data: &[u8]) -> [u8; 32] {
     let mut hasher = tiny_keccak::Keccak::v256();
     let mut result = [0u8; 32];
     hasher.update(data);

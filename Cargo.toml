@@ -16,6 +16,7 @@ crate-type = ["lib", "cdylib"]
 [dependencies]
 hex = "0.4.3"
 num-bigint = "*"
+num-traits = "0.2.18"
 once_cell = "1.19.0"
 
 [dependencies.tiny-keccak]

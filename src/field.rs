@@ -1,4 +1,5 @@
 use num_bigint::BigInt;
+use num_traits::{One, Zero};
 use once_cell::sync::Lazy;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -8,9 +9,9 @@ use std::str::FromStr;
 use std::sync::Mutex;
 
 fn xgcd(a: BigInt, b: BigInt) -> (BigInt, BigInt, BigInt) {
-    let zero = BigInt::from_str("0").unwrap();
+    let zero = BigInt::zero();
     if b == zero {
-        (a, BigInt::from_str("1").unwrap(), zero)
+        (a, BigInt::one(), zero)
     } else {
         let (d, x, y) = xgcd(b.clone(), a.clone() % b.clone());
         (d, y.clone(), x - (a / b) * y)
@@ -21,11 +22,11 @@ pub static NTH_ROOT_OF_UNITY_CACHE: Lazy<Mutex<HashMap<(BigInt, BigInt), GFEleme
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[pyclass]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GF {
     #[pyo3(get)]
     p: BigInt,
-    r: BigInt,
+    // r: BigInt,
     r_bits: u64,
     r_mask: BigInt,
     r2: BigInt,
@@ -63,7 +64,7 @@ impl GF {
         }
         Ok(GF {
             p: p.clone(),
-            r: r.clone(),
+            // r: r.clone(),
             r_bits: r.bits() - 1,
             r_mask: &r - 1,
             r2: r.modpow(&BigInt::from_str("2").unwrap(), &p),
@@ -124,11 +125,11 @@ impl GF {
     }
 
     pub fn one(&self) -> GFElement {
-        GFElement::new(BigInt::from_str("1").unwrap(), self.clone(), false)
+        GFElement::new(BigInt::one(), self.clone(), false)
     }
 
     pub fn zero(&self) -> GFElement {
-        GFElement::new(BigInt::from_str("0").unwrap(), self.clone(), false)
+        GFElement::new(BigInt::zero(), self.clone(), false)
     }
 
     pub fn __call__(&self, value: Value) -> GFElement {
@@ -139,12 +140,11 @@ impl GF {
     }
 
     fn to_montgomery(&self, value: BigInt) -> BigInt {
-        self.from_montgomery(value * &self.r2)
+        self.from_montgomery(&value * &self.r2)
     }
 
     fn from_montgomery(&self, value: BigInt) -> BigInt {
-        let t = (value.clone() + ((value.clone() * &self.p_prime) & &self.r_mask) * &self.p)
-            >> self.r_bits;
+        let t = (&value + ((&value * &self.p_prime) & &self.r_mask) * &self.p) >> self.r_bits;
         if t >= self.p {
             t - &self.p
         } else {
@@ -160,9 +160,9 @@ impl GF {
         format!("F_{}", self.p)
     }
 
-    pub fn __eq__(&self, other: Self) -> bool {
-        self.p == other.p && self.r == other.r
-    }
+    // pub fn __eq__(&self, other: Self) -> bool {
+    //     self.p == other.p && self.r == other.r
+    // }
 
     #[getter]
     fn n8(&self) -> u64 {
@@ -170,8 +170,8 @@ impl GF {
     }
 
     fn from_bytes(&self, data: &[u8], is_montgomery: bool) -> GFElement {
-        let mut value = BigInt::from_bytes_le(num_bigint::Sign::Plus, &data);
-        value = value % &self.p;
+        let mut value = BigInt::from_bytes_le(num_bigint::Sign::Plus, data);
+        value %= &self.p;
         GFElement::new(value, self.clone(), is_montgomery)
     }
 
@@ -186,7 +186,7 @@ impl GF {
     }
 
     fn __contains__(&self, value: GFElement) -> bool {
-        value.gf.__eq__(self.clone())
+        value.gf == self.clone()
     }
 
     pub fn nth_root_of_unity(&mut self, n: BigInt) -> PyResult<GFElement> {
@@ -203,8 +203,8 @@ impl GF {
             // return Ok(self.nth_root_of_unity_cache[&n].clone());
             return Ok(NTH_ROOT_OF_UNITY_CACHE.lock().unwrap()[&cache_key].clone());
         }
-        let p_1 = &self.p - BigInt::from_str("1").unwrap();
-        if &p_1 % &n != BigInt::from_str("0").unwrap() {
+        let p_1 = &self.p - BigInt::one();
+        if !(&p_1 % &n).is_zero() {
             return Err(PyValueError::new_err("n must divide p - 1"));
         }
         let k = self.__call__(Value::BigInt(BigInt::from_str("5").unwrap()));
@@ -232,36 +232,34 @@ impl GFElement {
     }
 
     pub fn __add__(&self, other: Self) -> PyResult<Self> {
-        if !self.gf.__eq__(other.gf) {
-            return Err(PyValueError::new_err("GF mismatch"));
-        }
-        Ok(GFElement::new(
-            self.gf.add(self.value.clone(), other.value),
-            self.gf.clone(),
-            true,
-        ))
+        // if !self.gf.__eq__(other.gf) {
+        //     return Err(PyValueError::new_err("GF mismatch"));
+        // }
+        Ok(GFElement {
+            gf: other.gf,
+            value: self.value.clone() + &other.value,
+        })
     }
 
     pub fn __sub__(&self, other: Self) -> PyResult<Self> {
-        if !self.gf.__eq__(other.gf) {
-            return Err(PyValueError::new_err("GF mismatch"));
-        }
+        // if !self.gf.__eq__(other.gf) {
+        //     return Err(PyValueError::new_err("GF mismatch"));
+        // }
         Ok(GFElement::new(
             self.gf.sub(self.value.clone(), other.value),
-            self.gf.clone(),
+            other.gf,
             true,
         ))
     }
 
     pub fn __mul__(&self, other: Self) -> PyResult<Self> {
-        if !self.gf.__eq__(other.gf) {
-            return Err(PyValueError::new_err("GF mismatch"));
-        }
-        Ok(GFElement::new(
-            self.gf.mul(self.value.clone(), other.value),
-            self.gf.clone(),
-            true,
-        ))
+        // if !self.gf.__eq__(other.gf) {
+        //     return Err(PyValueError::new_err("GF mismatch"));
+        // }
+        Ok(GFElement {
+            value: self.gf.from_montgomery(&other.value * &self.value),
+            gf: other.gf,
+        })
     }
 
     fn __invert__(&self) -> Self {
@@ -269,24 +267,21 @@ impl GFElement {
     }
 
     pub fn __truediv__(&self, other: Self) -> PyResult<Self> {
-        if !self.gf.__eq__(other.gf) {
-            return Err(PyValueError::new_err("GF mismatch"));
-        }
+        // if !self.gf.__eq__(other.gf) {
+        //     return Err(PyValueError::new_err("GF mismatch"));
+        // }
         Ok(GFElement::new(
             self.gf.div(self.value.clone(), other.value),
-            self.gf.clone(),
+            other.gf,
             true,
         ))
     }
 
     pub fn __pow__(&self, other: BigInt, p: Option<BigInt>) -> PyResult<Self> {
-        match p {
-            Some(p) => {
-                if p != self.gf.p {
-                    return Err(PyValueError::new_err("GF mismatch"));
-                }
+        if let Some(p) = p {
+            if p != self.gf.p {
+                return Err(PyValueError::new_err("GF mismatch"));
             }
-            None => {}
         }
         Ok(GFElement::new(
             self.gf.pow(self.value.clone(), other),
@@ -300,7 +295,7 @@ impl GFElement {
     }
 
     pub fn __eq__(&self, other: Self) -> bool {
-        self.gf.__eq__(other.gf) && self.value == other.value
+        self.gf == other.gf && self.value == other.value
     }
 
     fn __repr__(&self) -> String {
