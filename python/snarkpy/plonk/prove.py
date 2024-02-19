@@ -130,7 +130,7 @@ def prove(
     zh_coeffs = [Fr(0)] * zkey.domain_size * 4
     zh_coeffs[0] = Fr(-1)
     zh_coeffs[zkey.domain_size] = Fr(1)
-    poly_zh_4 = Polynomial(zkey.r, coeffs=zh_coeffs)
+    poly_zh_4 = Polynomial(Fr, coeffs=zh_coeffs)
 
     # round 1
     b = [Fr(randbelow(zkey.r)) for _ in range(11)]
@@ -157,9 +157,11 @@ def prove(
     poly_qc = zkey.poly_qc
     poly_ls = zkey.poly_ls
 
-    poly_a_blinded_4 = Polynomial(zkey.r, coeffs=[b[1], b[0]]) * poly_zh_4 + poly_a
-    poly_b_blinded_4 = Polynomial(zkey.r, coeffs=[b[3], b[2]]) * poly_zh_4 + poly_b
-    poly_c_blinded_4 = Polynomial(zkey.r, coeffs=[b[5], b[4]]) * poly_zh_4 + poly_c
+    tmp = Polynomial(Fr, coeffs=[b[1], b[0]]) * poly_zh_4
+    tmp = tmp + poly_a
+    poly_a_blinded_4 = Polynomial(Fr, coeffs=[b[1], b[0]]) * poly_zh_4 + poly_a
+    poly_b_blinded_4 = Polynomial(Fr, coeffs=[b[3], b[2]]) * poly_zh_4 + poly_b
+    poly_c_blinded_4 = Polynomial(Fr, coeffs=[b[5], b[4]]) * poly_zh_4 + poly_c
 
     proof_a = exp_tau(poly_a_blinded_4, taus)
     proof_b = exp_tau(poly_b_blinded_4, taus)
@@ -199,6 +201,9 @@ def prove(
 
     evals = [Fr(1)]
     w = Fr(1)
+    poly_s1.calc_evals_if_necessary()
+    poly_s2.calc_evals_if_necessary()
+    poly_s3.calc_evals_if_necessary()
     for i in range(zkey.domain_size):
         res = evals[-1]
         res = res * (poly_a.evals[i] + beta * w + gamma)
@@ -210,9 +215,9 @@ def prove(
         evals.append(res)
         w = w * omega
     assert evals.pop() == Fr(1)
-    poly_z = Polynomial(zkey.r, evals=evals)
+    poly_z = Polynomial(Fr, evals=evals)
     poly_z_blinded_4 = (
-        Polynomial(zkey.r, coeffs=[b[8], b[7], b[6]]) * poly_zh_4 + poly_z
+        Polynomial(Fr, coeffs=[b[8], b[7], b[6]]) * poly_zh_4 + poly_z
     )
     proof_z = exp_tau(poly_z_blinded_4, taus)
 
@@ -229,9 +234,9 @@ def prove(
     for i in range(zkey.domain_size * 4):
         for j in range(zkey.n_public):
             pi_evals[i] = pi_evals[i] - poly_l_4s[j].evals[i] * poly_a.evals[j]
-    poly_pi_4 = Polynomial(zkey.r, evals=pi_evals)
+    poly_pi_4 = Polynomial(Fr, evals=pi_evals)
     poly_zw_blinded_4 = Polynomial(
-        zkey.r, coeffs=[c * omega**i for i, c in enumerate(poly_z_blinded_4.coeffs)]
+        Fr, coeffs=[c * omega**i for i, c in enumerate(poly_z_blinded_4.coeffs)]
     )
     poly_z_blinded_8 = poly_z_blinded_4.extend(2 ** (zkey.power + 3))
     poly_zw_blinded_8 = poly_zw_blinded_4.extend(2 ** (zkey.power + 3))
@@ -245,9 +250,9 @@ def prove(
         + poly_qc_4
     )
     tb = (
-        (poly_a_blinded_4 + Polynomial(zkey.r, coeffs=[gamma, beta]))
-        * (poly_b_blinded_4 + Polynomial(zkey.r, coeffs=[gamma, beta * zkey.k1]))
-        * (poly_c_blinded_4 + Polynomial(zkey.r, coeffs=[gamma, beta * zkey.k2]))
+        (poly_a_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta]))
+        * (poly_b_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k1]))
+        * (poly_c_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k2]))
         * poly_z_blinded_8
         * alpha
     )
@@ -261,6 +266,7 @@ def prove(
     td = (poly_z_blinded_4 + Fr(-1)) * poly_l_4s[0] * alpha * alpha
     tzh = ta + tb - tc + td
 
+    tzh.calc_coeffs_if_necessary()
     t_coeffs = list(tzh.coeffs)
     for i in range(zkey.domain_size):
         t_coeffs[i] = t_coeffs[i] * Fr(-1)
@@ -270,15 +276,15 @@ def prove(
             raise RuntimeError
     assert all(c == Fr(0) for c in t_coeffs[zkey.domain_size * 3 + 6 :])
 
-    poly_t_low = Polynomial(zkey.r, coeffs=t_coeffs[: zkey.domain_size] + [b[9]])
+    poly_t_low = Polynomial(Fr, coeffs=t_coeffs[: zkey.domain_size] + [b[9]])
     poly_t_mid = Polynomial(
-        zkey.r,
+        Fr,
         coeffs=[t_coeffs[zkey.domain_size] - b[9]]
         + t_coeffs[zkey.domain_size + 1 : zkey.domain_size * 2]
         + [b[10]],
     )
     poly_t_high = Polynomial(
-        zkey.r,
+        Fr,
         coeffs=[t_coeffs[zkey.domain_size * 2] - b[10]]
         + t_coeffs[zkey.domain_size * 2 + 1 : zkey.domain_size * 3 + 6],
     )
@@ -355,7 +361,7 @@ def prove(
         for i in range(n - 2, -1, -1):
             ret[i] = ret[i + 1] * x + coeffs[i + 1]
         assert poly[0] == ret[0] * x * Fr(-1)
-        return Polynomial(poly._p, coeffs=ret)
+        return Polynomial(poly.gf, coeffs=ret)
 
     poly_w_zeta = (
         poly_r

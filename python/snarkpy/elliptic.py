@@ -14,6 +14,8 @@ def multiply(x):
 
 def exp_tau(poly: Polynomial, taus: Sequence[tuple[FQ, FQ, FQ]]) -> tuple[FQ, FQ]:
     assert poly.degree() + 1 <= len(taus)
+    print(poly.degree())
+    # poly.calc_coeffs_if_necessary()
     xs = [(taus[i], int(poly[i])) for i in range(poly.degree() + 1)]
     with Pool(16) as p:
         res = p.map(multiply, xs)

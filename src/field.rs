@@ -1,11 +1,10 @@
-use num_bigint::{BigInt, BigUint};
-use num_traits::{FromBytes, Num, One, Zero};
+use num_bigint::BigInt;
+use num_traits::{FromBytes, One, Zero};
 use once_cell::sync::Lazy;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBytes, PyDict};
-use rug::integer::Order;
-use rug::{Assign, Integer};
+use rug::Integer;
 use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -44,7 +43,7 @@ pub struct GFElement {
 }
 
 #[derive(Clone, Debug)]
-pub enum Value {
+pub enum BigIntOrGFElement {
     BigInt(BigInt),
     GFElement(GFElement),
 }
@@ -83,10 +82,10 @@ impl GF {
         GFElement::new(BigInt::zero(), self.clone(), false)
     }
 
-    pub fn __call__(&self, value: Value) -> GFElement {
+    pub fn __call__(&self, value: BigIntOrGFElement) -> GFElement {
         match value {
-            Value::BigInt(value) => GFElement::new(value, self.clone(), false),
-            Value::GFElement(value) => value,
+            BigIntOrGFElement::BigInt(value) => GFElement::new(value, self.clone(), false),
+            BigIntOrGFElement::GFElement(value) => value,
         }
     }
 
@@ -127,7 +126,7 @@ impl GF {
         value.gf == self.clone()
     }
 
-    pub fn nth_root_of_unity(&mut self, n: BigInt) -> PyResult<GFElement> {
+    pub fn nth_root_of_unity(&self, n: BigInt) -> PyResult<GFElement> {
         if n.sign() == num_bigint::Sign::Minus {
             return Err(PyValueError::new_err("n must be positive"));
         }
@@ -147,7 +146,7 @@ impl GF {
         if !tmp.is_zero() {
             return Err(PyValueError::new_err("n must divide p - 1"));
         }
-        let k = self.__call__(Value::BigInt(BigInt::from_str("5").unwrap()));
+        let k = self.__call__(BigIntOrGFElement::BigInt(BigInt::from_str("5").unwrap()));
         let res = GFElement {
             value: self.pow(&k.value, &(&p_1 / n)),
             gf: self.clone(),
@@ -177,34 +176,34 @@ impl GFElement {
         }
     }
 
-    pub fn __add__(&self, other: Self) -> PyResult<Self> {
-        // if !self.gf.__eq__(other.gf) {
-        //     return Err(PyValueError::new_err("GF mismatch"));
-        // }
+    pub fn __add__(&self, other: &Self) -> PyResult<Self> {
+        if self.gf != other.gf {
+            return Err(PyValueError::new_err("GF mismatch"));
+        }
         Ok(GFElement {
-            gf: other.gf,
+            gf: other.gf.clone(),
             value: self.gf.add(&self.value, &other.value),
         })
     }
 
-    pub fn __sub__(&self, other: Self) -> PyResult<Self> {
-        // if !self.gf.__eq__(other.gf) {
-        //     return Err(PyValueError::new_err("GF mismatch"));
-        // }
+    pub fn __sub__(&self, other: &Self) -> PyResult<Self> {
+        if self.gf != other.gf {
+            return Err(PyValueError::new_err("GF mismatch"));
+        }
         Ok(GFElement {
             value: self.gf.sub(&self.value, &other.value),
-            gf: other.gf,
+            gf: other.gf.clone(),
         })
     }
 
-    pub fn __mul__(&self, other: Self) -> PyResult<Self> {
-        // if !self.gf.__eq__(other.gf) {
-        //     return Err(PyValueError::new_err("GF mismatch"));
-        // }
+    pub fn __mul__(&self, other: &Self) -> PyResult<Self> {
+        if self.gf != other.gf {
+            return Err(PyValueError::new_err("GF mismatch"));
+        }
         let tmp = Integer::from(&other.value * &self.value);
         Ok(GFElement {
             value: self.gf.from_montgomery(&tmp),
-            gf: other.gf,
+            gf: other.gf.clone(),
         })
     }
 
@@ -216,9 +215,9 @@ impl GFElement {
     }
 
     pub fn __truediv__(&self, other: Self) -> PyResult<Self> {
-        // if !self.gf.__eq__(other.gf) {
-        //     return Err(PyValueError::new_err("GF mismatch"));
-        // }
+        if self.gf != other.gf {
+            return Err(PyValueError::new_err("GF mismatch"));
+        }
         Ok(GFElement {
             value: self.gf.div(&self.value, &other.value),
             gf: other.gf,
@@ -259,12 +258,12 @@ impl GFElement {
     }
 }
 
-impl<'a> FromPyObject<'a> for Value {
+impl<'a> FromPyObject<'a> for BigIntOrGFElement {
     fn extract(ob: &'a PyAny) -> PyResult<Self> {
         if let Ok(s) = BigInt::extract(ob) {
-            Ok(Value::BigInt(s))
+            Ok(BigIntOrGFElement::BigInt(s))
         } else if let Ok(s) = GFElement::extract(ob) {
-            Ok(Value::GFElement(s))
+            Ok(BigIntOrGFElement::GFElement(s))
         } else {
             Err(PyValueError::new_err("Invalid type"))
         }
@@ -274,7 +273,11 @@ impl<'a> FromPyObject<'a> for Value {
 impl GF {
     fn add(&self, a: &Integer, b: &Integer) -> Integer {
         let tmp = Integer::from(a + b);
-        tmp % &self.p
+        if tmp >= self.p {
+            tmp - &self.p
+        } else {
+            tmp
+        }
     }
 
     fn sub(&self, a: &Integer, b: &Integer) -> Integer {
@@ -341,7 +344,7 @@ impl GF {
         if tmp >= self.p {
             tmp - &self.p
         } else {
-            tmp - 0
+            tmp
         }
     }
 }

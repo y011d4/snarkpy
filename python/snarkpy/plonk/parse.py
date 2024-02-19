@@ -207,11 +207,11 @@ def parse_zkey(filename: Path) -> ZKey:
         coeffs = []
         for _ in range(domain_size):
             coeffs.append(Fr.from_bytes(reader.read(n8r), is_montgomery=True))
-        poly = Polynomial(r, coeffs=coeffs)
+        poly = Polynomial(Fr, coeffs=coeffs)
         evals_4 = []
         for _ in range(domain_size * 4):
             evals_4.append(Fr.from_bytes(reader.read(n8r), is_montgomery=True))
-        poly_4 = Polynomial(r, evals=evals_4)
+        poly_4 = Polynomial(Fr, evals=evals_4)
         if check:
             assert reader.check_section_end(section)
         return poly, poly_4
@@ -361,7 +361,7 @@ def parse_wtns(filename: Path, zkey: ZKey) -> Wtns:
         for idx in idx_list:
             evals.append(_get_witness(idx, zkey, wtns_buf, internal_wtns_buf))
         evals += [Fr(0)] * (zkey.domain_size - len(evals))
-        return Polynomial(zkey.r, evals=evals)
+        return Polynomial(Fr, evals=evals)
 
     poly_a = idx_list_to_poly(zkey.a_idx)
     poly_b = idx_list_to_poly(zkey.b_idx)
