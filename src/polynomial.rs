@@ -481,9 +481,10 @@ impl Polynomial {
             }
         }
         let mut r = 1;
+        let one = self.gf.one();
         for omega in &omegas[1..(k + 1) as usize] {
             for l in (0..n).step_by(2 * r) {
-                let mut omega_i = self.gf.one();
+                let mut omega_i = one.clone();
                 for i in 0..r {
                     let tmp = omega_i.__mul__(&evals[l + i + r])?;
                     (evals[l + i], evals[l + i + r]) =

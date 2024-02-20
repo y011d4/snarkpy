@@ -19,4 +19,5 @@ def exp_tau(poly: Polynomial, taus: Sequence[tuple[FQ, FQ, FQ]]) -> tuple[FQ, FQ
     xs = [(taus[i], int(poly[i])) for i in range(poly.degree() + 1)]
     with Pool(16) as p:
         res = p.map(multiply, xs)
+    # res = [multiply(x) for x in xs]
     return bn128.normalize(reduce(lambda x, y: bn128.add(x, y), res))

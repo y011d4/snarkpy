@@ -1,8 +1,10 @@
+from contextlib import contextmanager
 import json
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from secrets import randbelow
-from typing import Any, Mapping, Sequence
+from typing import Any, Generator, Mapping, Sequence
 
 from py_ecc import optimized_bn128 as bn128
 from py_ecc.optimized_bn128 import FQ
@@ -12,6 +14,20 @@ from snarkpy.field import GF, GFElement
 from snarkpy.hash import keccak
 from snarkpy.polynomial import Polynomial
 from snarkpy.plonk.parse import parse_wtns, parse_zkey
+
+
+@contextmanager
+def log_elapsed_time(
+    message: str, debug: bool, indent: int = 0
+) -> Generator[None, None, None]:
+    prefix = " " * indent * 4
+    if debug:
+        print(f"{prefix}{message} start")
+    now = time.time()
+    yield
+    elapsed = time.time() - now
+    if debug:
+        print(f"{prefix}{message} end ({elapsed:.2f} seconds elapsed)")
 
 
 @dataclass
@@ -120,8 +136,9 @@ class Proof:
 def prove(
     zkey_path: Path, wtns_path: Path, debug: bool = False
 ) -> tuple[Proof, Sequence[int]]:
-    zkey = parse_zkey(zkey_path)
-    wtns = parse_wtns(wtns_path, zkey)
+    with log_elapsed_time("parse", debug):
+        zkey = parse_zkey(zkey_path)
+        wtns = parse_wtns(wtns_path, zkey)
 
     Fr = GF(zkey.r, 2**256)
 
@@ -157,227 +174,271 @@ def prove(
     poly_qc = zkey.poly_qc
     poly_ls = zkey.poly_ls
 
-    tmp = Polynomial(Fr, coeffs=[b[1], b[0]]) * poly_zh_4
-    tmp = tmp + poly_a
-    poly_a_blinded_4 = Polynomial(Fr, coeffs=[b[1], b[0]]) * poly_zh_4 + poly_a
-    poly_b_blinded_4 = Polynomial(Fr, coeffs=[b[3], b[2]]) * poly_zh_4 + poly_b
-    poly_c_blinded_4 = Polynomial(Fr, coeffs=[b[5], b[4]]) * poly_zh_4 + poly_c
+    with log_elapsed_time("proof a, b, c", debug):
+        tmp = Polynomial(Fr, coeffs=[b[1], b[0]]) * poly_zh_4
+        tmp = tmp + poly_a
+        poly_a_blinded_4 = Polynomial(Fr, coeffs=[b[1], b[0]]) * poly_zh_4 + poly_a
+        poly_b_blinded_4 = Polynomial(Fr, coeffs=[b[3], b[2]]) * poly_zh_4 + poly_b
+        poly_c_blinded_4 = Polynomial(Fr, coeffs=[b[5], b[4]]) * poly_zh_4 + poly_c
 
-    proof_a = exp_tau(poly_a_blinded_4, taus)
-    proof_b = exp_tau(poly_b_blinded_4, taus)
-    proof_c = exp_tau(poly_c_blinded_4, taus)
+        proof_a = exp_tau(poly_a_blinded_4, taus)
+        proof_b = exp_tau(poly_b_blinded_4, taus)
+        proof_c = exp_tau(poly_c_blinded_4, taus)
 
     # round 2
-    transcript1 = b""
-    transcript1 += int(bn128.normalize(zkey.qm)[0]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.qm)[1]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.ql)[0]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.ql)[1]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.qr)[0]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.qr)[1]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.qo)[0]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.qo)[1]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.qc)[0]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.qc)[1]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.s1)[0]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.s1)[1]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.s2)[0]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.s2)[1]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.s3)[0]).to_bytes(32, "big")
-    transcript1 += int(bn128.normalize(zkey.s3)[1]).to_bytes(32, "big")
-    for i in range(zkey.n_public):
-        transcript1 += Fr.to_bytes(poly_a(omega**i))[::-1]
-    transcript1 += int(proof_a[0]).to_bytes(32, "big")
-    transcript1 += int(proof_a[1]).to_bytes(32, "big")
-    transcript1 += int(proof_b[0]).to_bytes(32, "big")
-    transcript1 += int(proof_b[1]).to_bytes(32, "big")
-    transcript1 += int(proof_c[0]).to_bytes(32, "big")
-    transcript1 += int(proof_c[1]).to_bytes(32, "big")
-    h = keccak(transcript1)
-    beta = Fr(int.from_bytes(h, "big"))
-    transcript2 = Fr.to_bytes(beta)[::-1]
-    h = keccak(transcript2)
-    gamma = Fr(int.from_bytes(h, "big"))
+    with log_elapsed_time("transcript1, 2", debug):
+        transcript1 = b""
+        transcript1 += int(bn128.normalize(zkey.qm)[0]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.qm)[1]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.ql)[0]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.ql)[1]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.qr)[0]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.qr)[1]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.qo)[0]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.qo)[1]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.qc)[0]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.qc)[1]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.s1)[0]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.s1)[1]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.s2)[0]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.s2)[1]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.s3)[0]).to_bytes(32, "big")
+        transcript1 += int(bn128.normalize(zkey.s3)[1]).to_bytes(32, "big")
+        for i in range(zkey.n_public):
+            transcript1 += Fr.to_bytes(poly_a(omega**i))[::-1]
+        transcript1 += int(proof_a[0]).to_bytes(32, "big")
+        transcript1 += int(proof_a[1]).to_bytes(32, "big")
+        transcript1 += int(proof_b[0]).to_bytes(32, "big")
+        transcript1 += int(proof_b[1]).to_bytes(32, "big")
+        transcript1 += int(proof_c[0]).to_bytes(32, "big")
+        transcript1 += int(proof_c[1]).to_bytes(32, "big")
+        h = keccak(transcript1)
+        beta = Fr(int.from_bytes(h, "big"))
+        transcript2 = Fr.to_bytes(beta)[::-1]
+        h = keccak(transcript2)
+        gamma = Fr(int.from_bytes(h, "big"))
 
-    evals = [Fr(1)]
-    w = Fr(1)
-    poly_s1.calc_evals_if_necessary()
-    poly_s2.calc_evals_if_necessary()
-    poly_s3.calc_evals_if_necessary()
-    for i in range(zkey.domain_size):
-        res = evals[-1]
-        res = res * (poly_a.evals[i] + beta * w + gamma)
-        res = res * (poly_b.evals[i] + beta * zkey.k1 * w + gamma)
-        res = res * (poly_c.evals[i] + beta * zkey.k2 * w + gamma)
-        res = res / (poly_a.evals[i] + poly_s1.evals[i] * beta + gamma)
-        res = res / (poly_b.evals[i] + poly_s2.evals[i] * beta + gamma)
-        res = res / (poly_c.evals[i] + poly_s3.evals[i] * beta + gamma)
-        evals.append(res)
-        w = w * omega
-    assert evals.pop() == Fr(1)
-    poly_z = Polynomial(Fr, evals=evals)
-    poly_z_blinded_4 = (
-        Polynomial(Fr, coeffs=[b[8], b[7], b[6]]) * poly_zh_4 + poly_z
-    )
-    proof_z = exp_tau(poly_z_blinded_4, taus)
+    with log_elapsed_time("proof z", debug):
+        evals = [Fr(1)]
+        w = Fr(1)
+        poly_s1.calc_evals_if_necessary()
+        poly_s2.calc_evals_if_necessary()
+        poly_s3.calc_evals_if_necessary()
+        omegas = [Fr(1)]
+        for _ in range(zkey.domain_size):
+            omegas.append(omegas[-1] * omega)
+        assert omegas.pop() == Fr(1)
+        tmp_an = poly_a + Polynomial(
+            Fr, evals=[gamma + beta * omega for omega in omegas]
+        )
+        tmp_bn = poly_b + Polynomial(
+            Fr, evals=[gamma + beta * zkey.k1 * omega for omega in omegas]
+        )
+        tmp_cn = poly_c + Polynomial(
+            Fr, evals=[gamma + beta * zkey.k2 * omega for omega in omegas]
+        )
+        tmp_ad = (
+            poly_a + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s1 * beta
+        )
+        tmp_bd = (
+            poly_b + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s2 * beta
+        )
+        tmp_cd = (
+            poly_c + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s3 * beta
+        )
+        tmp_n = tmp_an * tmp_bn * tmp_cn
+        tmp_d = tmp_ad * tmp_bd * tmp_cd
+        for i in range(zkey.domain_size):
+            res = evals[-1]
+            # res = res * (poly_a.evals[i] + beta * w + gamma)
+            # res = res * (poly_b.evals[i] + beta * zkey.k1 * w + gamma)
+            # res = res * (poly_c.evals[i] + beta * zkey.k2 * w + gamma)
+            # res = res / (poly_a.evals[i] + poly_s1.evals[i] * beta + gamma)
+            # res = res / (poly_b.evals[i] + poly_s2.evals[i] * beta + gamma)
+            # res = res / (poly_c.evals[i] + poly_s3.evals[i] * beta + gamma)
+            res = res * tmp_n.evals[i] / tmp_d.evals[i]
+            evals.append(res)
+            w = w * omega
+        assert evals.pop() == Fr(1)
+        poly_z = Polynomial(Fr, evals=evals)
+        poly_z_blinded_4 = (
+            Polynomial(Fr, coeffs=[b[8], b[7], b[6]]) * poly_zh_4 + poly_z
+        )
+        proof_z = exp_tau(poly_z_blinded_4, taus)
 
     # round 3
-    transcript3 = b""
-    transcript3 += Fr.to_bytes(beta)[::-1]
-    transcript3 += Fr.to_bytes(gamma)[::-1]
-    transcript3 += int(proof_z[0]).to_bytes(32, "big")
-    transcript3 += int(proof_z[1]).to_bytes(32, "big")
-    h = keccak(transcript3)
-    alpha = Fr(int.from_bytes(h, "big"))
+    with log_elapsed_time("transcript3", debug):
+        transcript3 = b""
+        transcript3 += Fr.to_bytes(beta)[::-1]
+        transcript3 += Fr.to_bytes(gamma)[::-1]
+        transcript3 += int(proof_z[0]).to_bytes(32, "big")
+        transcript3 += int(proof_z[1]).to_bytes(32, "big")
+        h = keccak(transcript3)
+        alpha = Fr(int.from_bytes(h, "big"))
 
-    pi_evals = [Fr(0) for _ in range(zkey.domain_size * 4)]
-    for i in range(zkey.domain_size * 4):
-        for j in range(zkey.n_public):
-            pi_evals[i] = pi_evals[i] - poly_l_4s[j].evals[i] * poly_a.evals[j]
-    poly_pi_4 = Polynomial(Fr, evals=pi_evals)
-    poly_zw_blinded_4 = Polynomial(
-        Fr, coeffs=[c * omega**i for i, c in enumerate(poly_z_blinded_4.coeffs)]
-    )
-    poly_z_blinded_8 = poly_z_blinded_4.extend(2 ** (zkey.power + 3))
-    poly_zw_blinded_8 = poly_zw_blinded_4.extend(2 ** (zkey.power + 3))
+    with log_elapsed_time("proof t", debug):
+        with log_elapsed_time("pi", debug, indent=1):
+            # pi_evals = [Fr(0) for _ in range(zkey.domain_size * 4)]
+            # for i in range(zkey.domain_size * 4):
+            #     for j in range(zkey.n_public):
+            #         pi_evals[i] = pi_evals[i] - poly_l_4s[j].evals[i] * poly_a.evals[j]
+            # poly_pi_4 = Polynomial(Fr, evals=pi_evals)
+            poly_pi_4 = Polynomial(Fr, evals=[0] * zkey.domain_size * 4)
+            for j in range(zkey.n_public):
+                poly_pi_4 = poly_pi_4 - poly_l_4s[j] * poly_a.evals[j]
+        with log_elapsed_time("poly_z, poly_zw", debug, indent=1):
+            poly_zw_blinded_4 = Polynomial(
+                Fr,
+                coeffs=[c * omega**i for i, c in enumerate(poly_z_blinded_4.coeffs)],
+            )
+            poly_z_blinded_8 = poly_z_blinded_4.extend(2 ** (zkey.power + 3))
+            poly_zw_blinded_8 = poly_zw_blinded_4.extend(2 ** (zkey.power + 3))
 
-    ta = (
-        poly_a_blinded_4 * poly_b_blinded_4 * poly_qm_4
-        + poly_a_blinded_4 * poly_ql_4
-        + poly_b_blinded_4 * poly_qr_4
-        + poly_c_blinded_4 * poly_qo_4
-        + poly_pi_4
-        + poly_qc_4
-    )
-    tb = (
-        (poly_a_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta]))
-        * (poly_b_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k1]))
-        * (poly_c_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k2]))
-        * poly_z_blinded_8
-        * alpha
-    )
-    tc = (
-        (poly_a_blinded_4 + poly_s1_4 * beta + gamma)
-        * (poly_b_blinded_4 + poly_s2_4 * beta + gamma)
-        * (poly_c_blinded_4 + poly_s3_4 * beta + gamma)
-        * poly_zw_blinded_8
-        * alpha
-    )
-    td = (poly_z_blinded_4 + Fr(-1)) * poly_l_4s[0] * alpha * alpha
-    tzh = ta + tb - tc + td
+        with log_elapsed_time("calc tzh", debug, indent=1):
+            ta = (
+                poly_a_blinded_4 * poly_b_blinded_4 * poly_qm_4
+                + poly_a_blinded_4 * poly_ql_4
+                + poly_b_blinded_4 * poly_qr_4
+                + poly_c_blinded_4 * poly_qo_4
+                + poly_pi_4
+                + poly_qc_4
+            )
+            tb = (
+                (poly_a_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta]))
+                * (poly_b_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k1]))
+                * (poly_c_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k2]))
+                * poly_z_blinded_8
+                * alpha
+            )
+            tc = (
+                (poly_a_blinded_4 + poly_s1_4 * beta + gamma)
+                * (poly_b_blinded_4 + poly_s2_4 * beta + gamma)
+                * (poly_c_blinded_4 + poly_s3_4 * beta + gamma)
+                * poly_zw_blinded_8
+                * alpha
+            )
+            td = (poly_z_blinded_4 + Fr(-1)) * poly_l_4s[0] * alpha * alpha
+            tzh = ta + tb - tc + td
+            tzh.calc_coeffs_if_necessary()
 
-    tzh.calc_coeffs_if_necessary()
-    t_coeffs = list(tzh.coeffs)
-    for i in range(zkey.domain_size):
-        t_coeffs[i] = t_coeffs[i] * Fr(-1)
-    for i in range(zkey.domain_size, zkey.domain_size * 4 + 6):
-        t_coeffs[i] = t_coeffs[i - zkey.domain_size] - t_coeffs[i]
-        if i > zkey.domain_size * 3 + 5 and t_coeffs[i] != Fr(0):
-            raise RuntimeError
-    assert all(c == Fr(0) for c in t_coeffs[zkey.domain_size * 3 + 6 :])
+        with log_elapsed_time("t_coeffs", debug, indent=1):
+            t_coeffs = list(tzh.coeffs)
+            for i in range(zkey.domain_size):
+                t_coeffs[i] = t_coeffs[i] * Fr(-1)
+            for i in range(zkey.domain_size, zkey.domain_size * 4 + 6):
+                t_coeffs[i] = t_coeffs[i - zkey.domain_size] - t_coeffs[i]
+                if i > zkey.domain_size * 3 + 5 and t_coeffs[i] != Fr(0):
+                    raise RuntimeError
+            assert all(c == Fr(0) for c in t_coeffs[zkey.domain_size * 3 + 6 :])
 
-    poly_t_low = Polynomial(Fr, coeffs=t_coeffs[: zkey.domain_size] + [b[9]])
-    poly_t_mid = Polynomial(
-        Fr,
-        coeffs=[t_coeffs[zkey.domain_size] - b[9]]
-        + t_coeffs[zkey.domain_size + 1 : zkey.domain_size * 2]
-        + [b[10]],
-    )
-    poly_t_high = Polynomial(
-        Fr,
-        coeffs=[t_coeffs[zkey.domain_size * 2] - b[10]]
-        + t_coeffs[zkey.domain_size * 2 + 1 : zkey.domain_size * 3 + 6],
-    )
-    proof_t1 = exp_tau(poly_t_low, taus)
-    proof_t2 = exp_tau(poly_t_mid, taus)
-    proof_t3 = exp_tau(poly_t_high, taus)
+        with log_elapsed_time("poly_t", debug, indent=1):
+            poly_t_low = Polynomial(Fr, coeffs=t_coeffs[: zkey.domain_size] + [b[9]])
+            poly_t_mid = Polynomial(
+                Fr,
+                coeffs=[t_coeffs[zkey.domain_size] - b[9]]
+                + t_coeffs[zkey.domain_size + 1 : zkey.domain_size * 2]
+                + [b[10]],
+            )
+            poly_t_high = Polynomial(
+                Fr,
+                coeffs=[t_coeffs[zkey.domain_size * 2] - b[10]]
+                + t_coeffs[zkey.domain_size * 2 + 1 : zkey.domain_size * 3 + 6],
+            )
+        with log_elapsed_time("proof t", debug, indent=1):
+            proof_t1 = exp_tau(poly_t_low, taus)
+            proof_t2 = exp_tau(poly_t_mid, taus)
+            proof_t3 = exp_tau(poly_t_high, taus)
 
     # round 4
-    transcript4 = b""
-    transcript4 += Fr.to_bytes(alpha)[::-1]
-    transcript4 += int(proof_t1[0]).to_bytes(32, "big")
-    transcript4 += int(proof_t1[1]).to_bytes(32, "big")
-    transcript4 += int(proof_t2[0]).to_bytes(32, "big")
-    transcript4 += int(proof_t2[1]).to_bytes(32, "big")
-    transcript4 += int(proof_t3[0]).to_bytes(32, "big")
-    transcript4 += int(proof_t3[1]).to_bytes(32, "big")
-    h = keccak(transcript4)
-    zeta = Fr(int.from_bytes(h, "big"))
+    with log_elapsed_time("transcript4", debug):
+        transcript4 = b""
+        transcript4 += Fr.to_bytes(alpha)[::-1]
+        transcript4 += int(proof_t1[0]).to_bytes(32, "big")
+        transcript4 += int(proof_t1[1]).to_bytes(32, "big")
+        transcript4 += int(proof_t2[0]).to_bytes(32, "big")
+        transcript4 += int(proof_t2[1]).to_bytes(32, "big")
+        transcript4 += int(proof_t3[0]).to_bytes(32, "big")
+        transcript4 += int(proof_t3[1]).to_bytes(32, "big")
+        h = keccak(transcript4)
+        zeta = Fr(int.from_bytes(h, "big"))
 
-    eval_a = poly_a_blinded_4(zeta)
-    eval_b = poly_b_blinded_4(zeta)
-    eval_c = poly_c_blinded_4(zeta)
-    eval_s1 = poly_s1(zeta)
-    eval_s2 = poly_s2(zeta)
-    eval_zw = poly_zw_blinded_4(zeta)
+    with log_elapsed_time("eval zeta", debug):
+        eval_a = poly_a_blinded_4(zeta)
+        eval_b = poly_b_blinded_4(zeta)
+        eval_c = poly_c_blinded_4(zeta)
+        eval_s1 = poly_s1(zeta)
+        eval_s2 = poly_s2(zeta)
+        eval_zw = poly_zw_blinded_4(zeta)
 
     # round 5
-    transcript5 = b""
-    transcript5 += Fr.to_bytes(zeta)[::-1]
-    transcript5 += int(eval_a).to_bytes(32, "big")
-    transcript5 += int(eval_b).to_bytes(32, "big")
-    transcript5 += int(eval_c).to_bytes(32, "big")
-    transcript5 += int(eval_s1).to_bytes(32, "big")
-    transcript5 += int(eval_s2).to_bytes(32, "big")
-    transcript5 += int(eval_zw).to_bytes(32, "big")
-    h = keccak(transcript5)
-    v = Fr(int.from_bytes(h, "big"))
+    with log_elapsed_time("transcript5", debug):
+        transcript5 = b""
+        transcript5 += Fr.to_bytes(zeta)[::-1]
+        transcript5 += int(eval_a).to_bytes(32, "big")
+        transcript5 += int(eval_b).to_bytes(32, "big")
+        transcript5 += int(eval_c).to_bytes(32, "big")
+        transcript5 += int(eval_s1).to_bytes(32, "big")
+        transcript5 += int(eval_s2).to_bytes(32, "big")
+        transcript5 += int(eval_zw).to_bytes(32, "big")
+        h = keccak(transcript5)
+        v = Fr(int.from_bytes(h, "big"))
 
-    ra = (
-        poly_qm * eval_a * eval_b
-        + poly_ql * eval_a
-        + poly_qr * eval_b
-        + poly_qo * eval_c
-        + poly_pi_4(zeta)
-        + poly_qc
-    )
-    rb = (
-        poly_z_blinded_4
-        * (eval_a + beta * zeta + gamma)
-        * (eval_b + beta * zkey.k1 * zeta + gamma)
-        * (eval_c + beta * zkey.k2 * zeta + gamma)
-        * alpha
-    )
-    rc = (
-        (poly_s3 * beta + eval_c + gamma)
-        * (eval_a + eval_s1 * beta + gamma)
-        * (eval_b + eval_s2 * beta + gamma)
-        * eval_zw
-        * alpha
-    )
-    rd = (poly_z_blinded_4 + Fr(-1)) * poly_ls[0](zeta) * alpha * alpha
-    re = (
-        poly_t_low
-        + poly_t_mid * zeta**zkey.domain_size
-        + poly_t_high * zeta ** (zkey.domain_size * 2)
-    ) * poly_zh_4(zeta)
-    poly_r = ra + rb - rc + rd - re
+    with log_elapsed_time("proof w_zeta, w_zetaw", debug):
+        ra = (
+            poly_qm * eval_a * eval_b
+            + poly_ql * eval_a
+            + poly_qr * eval_b
+            + poly_qo * eval_c
+            + poly_pi_4(zeta)
+            + poly_qc
+        )
+        rb = (
+            poly_z_blinded_4
+            * (eval_a + beta * zeta + gamma)
+            * (eval_b + beta * zkey.k1 * zeta + gamma)
+            * (eval_c + beta * zkey.k2 * zeta + gamma)
+            * alpha
+        )
+        rc = (
+            (poly_s3 * beta + eval_c + gamma)
+            * (eval_a + eval_s1 * beta + gamma)
+            * (eval_b + eval_s2 * beta + gamma)
+            * eval_zw
+            * alpha
+        )
+        rd = (poly_z_blinded_4 + Fr(-1)) * poly_ls[0](zeta) * alpha * alpha
+        re = (
+            poly_t_low
+            + poly_t_mid * zeta**zkey.domain_size
+            + poly_t_high * zeta ** (zkey.domain_size * 2)
+        ) * poly_zh_4(zeta)
+        poly_r = ra + rb - rc + rd - re
 
-    def div_poly(poly: Polynomial, x: GFElement) -> Polynomial:
-        n = poly.degree()
-        coeffs = poly.coeffs[: n + 1]
-        ret = [Fr(0)] * n
-        ret[n - 1] = coeffs[n]
-        for i in range(n - 2, -1, -1):
-            ret[i] = ret[i + 1] * x + coeffs[i + 1]
-        assert poly[0] == ret[0] * x * Fr(-1)
-        return Polynomial(poly.gf, coeffs=ret)
+        def div_poly(poly: Polynomial, x: GFElement) -> Polynomial:
+            n = poly.degree()
+            coeffs = poly.coeffs[: n + 1]
+            ret = [Fr(0)] * n
+            ret[n - 1] = coeffs[n]
+            for i in range(n - 2, -1, -1):
+                ret[i] = ret[i + 1] * x + coeffs[i + 1]
+            assert poly[0] == ret[0] * x * Fr(-1)
+            return Polynomial(poly.gf, coeffs=ret)
 
-    poly_w_zeta = (
-        poly_r
-        + (poly_a_blinded_4 - eval_a) * v
-        + (poly_b_blinded_4 - eval_b) * v**2
-        + (poly_c_blinded_4 - eval_c) * v**3
-        + (poly_s1_4 - eval_s1) * v**4
-        + (poly_s2_4 - eval_s2) * v**5
-    )
-    poly_w_zeta = div_poly(poly_w_zeta, zeta)
+        poly_w_zeta = (
+            poly_r
+            + (poly_a_blinded_4 - eval_a) * v
+            + (poly_b_blinded_4 - eval_b) * v**2
+            + (poly_c_blinded_4 - eval_c) * v**3
+            + (poly_s1_4 - eval_s1) * v**4
+            + (poly_s2_4 - eval_s2) * v**5
+        )
+        poly_w_zeta = div_poly(poly_w_zeta, zeta)
 
-    poly_w_zetaw = poly_z_blinded_4 - eval_zw
-    poly_w_zetaw = div_poly(poly_w_zetaw, zeta * omega)
+        poly_w_zetaw = poly_z_blinded_4 - eval_zw
+        poly_w_zetaw = div_poly(poly_w_zetaw, zeta * omega)
 
-    proof_w_zeta = exp_tau(poly_w_zeta, taus)
-    proof_w_zetaw = exp_tau(poly_w_zetaw, taus)
+        proof_w_zeta = exp_tau(poly_w_zeta, taus)
+        proof_w_zetaw = exp_tau(poly_w_zetaw, taus)
 
     proof = Proof(
         a=proof_a + (FQ(1),),
