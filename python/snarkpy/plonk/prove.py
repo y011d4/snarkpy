@@ -219,52 +219,59 @@ def prove(
         gamma = Fr(int.from_bytes(h, "big"))
 
     with log_elapsed_time("proof z", debug):
-        evals = [Fr(1)]
-        w = Fr(1)
-        poly_s1.calc_evals_if_necessary()
-        poly_s2.calc_evals_if_necessary()
-        poly_s3.calc_evals_if_necessary()
-        omegas = [Fr(1)]
-        for _ in range(zkey.domain_size):
-            omegas.append(omegas[-1] * omega)
-        assert omegas.pop() == Fr(1)
-        tmp_an = poly_a + Polynomial(
-            Fr, evals=[gamma + beta * omega for omega in omegas]
-        )
-        tmp_bn = poly_b + Polynomial(
-            Fr, evals=[gamma + beta * zkey.k1 * omega for omega in omegas]
-        )
-        tmp_cn = poly_c + Polynomial(
-            Fr, evals=[gamma + beta * zkey.k2 * omega for omega in omegas]
-        )
-        tmp_ad = (
-            poly_a + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s1 * beta
-        )
-        tmp_bd = (
-            poly_b + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s2 * beta
-        )
-        tmp_cd = (
-            poly_c + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s3 * beta
-        )
-        tmp_n = tmp_an * tmp_bn * tmp_cn
-        tmp_d = tmp_ad * tmp_bd * tmp_cd
-        for i in range(zkey.domain_size):
-            res = evals[-1]
-            # res = res * (poly_a.evals[i] + beta * w + gamma)
-            # res = res * (poly_b.evals[i] + beta * zkey.k1 * w + gamma)
-            # res = res * (poly_c.evals[i] + beta * zkey.k2 * w + gamma)
-            # res = res / (poly_a.evals[i] + poly_s1.evals[i] * beta + gamma)
-            # res = res / (poly_b.evals[i] + poly_s2.evals[i] * beta + gamma)
-            # res = res / (poly_c.evals[i] + poly_s3.evals[i] * beta + gamma)
-            res = res * tmp_n.evals[i] / tmp_d.evals[i]
-            evals.append(res)
-            w = w * omega
-        assert evals.pop() == Fr(1)
-        poly_z = Polynomial(Fr, evals=evals)
-        poly_z_blinded_4 = (
-            Polynomial(Fr, coeffs=[b[8], b[7], b[6]]) * poly_zh_4 + poly_z
-        )
-        proof_z = exp_tau(poly_z_blinded_4, taus)
+        with log_elapsed_time("prepare", debug, indent=1):
+            evals = [Fr(1)]
+            w = Fr(1)
+            poly_s1.calc_evals_if_necessary()
+            poly_s2.calc_evals_if_necessary()
+            poly_s3.calc_evals_if_necessary()
+            omegas = [Fr(1)]
+            for _ in range(zkey.domain_size):
+                omegas.append(omegas[-1] * omega)
+            assert omegas.pop() == Fr(1)
+        with log_elapsed_time("poly", debug, indent=1):
+            tmp_an = poly_a + Polynomial(
+                Fr, evals=[gamma + beta * omega for omega in omegas]
+            )
+            tmp_bn = poly_b + Polynomial(
+                Fr, evals=[gamma + beta * zkey.k1 * omega for omega in omegas]
+            )
+            tmp_cn = poly_c + Polynomial(
+                Fr, evals=[gamma + beta * zkey.k2 * omega for omega in omegas]
+            )
+            tmp_ad = (
+                poly_a + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s1 * beta
+            )
+            tmp_bd = (
+                poly_b + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s2 * beta
+            )
+            tmp_cd = (
+                poly_c + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s3 * beta
+            )
+            tmp_n = tmp_an * tmp_bn * tmp_cn
+            tmp_d = tmp_ad * tmp_bd * tmp_cd
+        with log_elapsed_time("evals", debug, indent=1):
+            tmp_n_evals = tmp_n.evals
+            tmp_d_evals = tmp_d.evals
+            for i in range(zkey.domain_size):
+                res = evals[-1]
+                # res = res * (poly_a.evals[i] + beta * w + gamma)
+                # res = res * (poly_b.evals[i] + beta * zkey.k1 * w + gamma)
+                # res = res * (poly_c.evals[i] + beta * zkey.k2 * w + gamma)
+                # res = res / (poly_a.evals[i] + poly_s1.evals[i] * beta + gamma)
+                # res = res / (poly_b.evals[i] + poly_s2.evals[i] * beta + gamma)
+                # res = res / (poly_c.evals[i] + poly_s3.evals[i] * beta + gamma)
+                res = res * tmp_n_evals[i] / tmp_d_evals[i]
+                evals.append(res)
+                w = w * omega
+            assert evals.pop() == Fr(1)
+        with log_elapsed_time("make poly", debug, indent=1):
+            poly_z = Polynomial(Fr, evals=evals)
+            poly_z_blinded_4 = (
+                Polynomial(Fr, coeffs=[b[8], b[7], b[6]]) * poly_zh_4 + poly_z
+            )
+        with log_elapsed_time("proof z", debug, indent=1):
+            proof_z = exp_tau(poly_z_blinded_4, taus)
 
     # round 3
     with log_elapsed_time("transcript3", debug):
@@ -283,9 +290,10 @@ def prove(
             #     for j in range(zkey.n_public):
             #         pi_evals[i] = pi_evals[i] - poly_l_4s[j].evals[i] * poly_a.evals[j]
             # poly_pi_4 = Polynomial(Fr, evals=pi_evals)
+            poly_a_evals = poly_a.evals
             poly_pi_4 = Polynomial(Fr, evals=[0] * zkey.domain_size * 4)
             for j in range(zkey.n_public):
-                poly_pi_4 = poly_pi_4 - poly_l_4s[j] * poly_a.evals[j]
+                poly_pi_4 = poly_pi_4 - poly_l_4s[j] * poly_a_evals[j]
         with log_elapsed_time("poly_z, poly_zw", debug, indent=1):
             poly_zw_blinded_4 = Polynomial(
                 Fr,
