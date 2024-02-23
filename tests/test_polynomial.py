@@ -22,18 +22,6 @@ class TestPolynomial:
         for i in range(len(evals)):
             assert poly(omega**i) == self.gf(evals[i])
 
-    def test_calc_evals_if_necessary(self) -> None:
-        poly = Polynomial(self.gf, coeffs=[1, 1, 1, 1])
-        assert poly.evals is None
-        poly.calc_evals_if_necessary()
-        assert poly.evals == [self.gf(4), self.gf(0), self.gf(0), self.gf(0)]
-
-    def test_calc_coeffs_if_necessary(self) -> None:
-        poly = Polynomial(self.gf, evals=[4, 0, 0, 0])
-        assert poly.coeffs is None
-        poly.calc_coeffs_if_necessary()
-        assert poly.coeffs == [self.gf(1), self.gf(1), self.gf(1), self.gf(1)]
-
     def test_repr(self) -> None:
         poly = Polynomial(self.gf, coeffs=[1, 2, 3, 4])
         assert repr(poly) == "1 + 2 * x^1 + 3 * x^2 + 4 * x^3 in F_65537"
@@ -47,21 +35,18 @@ class TestPolynomial:
         poly2 = Polynomial(self.gf, coeffs=[1, 1, 1, 1])
         actual = poly1 + poly2
         assert actual.evals == [self.gf(5), self.gf(2), self.gf(3), self.gf(4)]
-        assert actual.coeffs == None
 
     def test_sub(self) -> None:
         poly1 = Polynomial(self.gf, evals=[1, 2, 3, 4])
         poly2 = Polynomial(self.gf, coeffs=[1, 1, 1, 1])
         actual = poly1 - poly2
         assert actual.evals == [self.gf(-3), self.gf(2), self.gf(3), self.gf(4)]
-        assert actual.coeffs == None
 
     def test_mul(self) -> None:
         poly1 = Polynomial(self.gf, evals=[1, 2, 3, 4])
         poly2 = Polynomial(self.gf, coeffs=[1, 1, 1, 1])
         actual = poly1 * poly2
         assert actual.evals == [self.gf(4), self.gf(0), self.gf(0), self.gf(0)]
-        assert actual.coeffs == None
 
     def test_get_item(self) -> None:
         poly = Polynomial(self.gf, evals=[4, 0, 0, 0])
@@ -82,3 +67,12 @@ class TestPolynomial:
         poly = Polynomial(self.gf, evals=[2, 0])
         actual = poly.extend(4)
         assert actual.coeffs == [self.gf(1), self.gf(1), self.gf(0), self.gf(0)]
+
+    def test_get_evals(self) -> None:
+        poly = Polynomial(self.gf, coeffs=[1, 1, 1, 1])
+        assert poly.evals == [self.gf(4), self.gf(0), self.gf(0), self.gf(0)]
+
+    def test_get_coeffs(self) -> None:
+        poly = Polynomial(self.gf, evals=[4, 0, 0, 0])
+        assert poly.coeffs == [self.gf(1), self.gf(1), self.gf(1), self.gf(1)]
+
