@@ -263,7 +263,7 @@ def prove(
                 # res = res / (poly_c.evals[i] + poly_s3.evals[i] * beta + gamma)
                 res = res * tmp_n_evals[i] / tmp_d_evals[i]
                 evals.append(res)
-                w = w * omega
+                # w = w * omega
             assert evals.pop() == Fr(1)
         with log_elapsed_time("make poly", debug, indent=1):
             poly_z = Polynomial(Fr, evals=evals)
@@ -303,31 +303,36 @@ def prove(
             poly_zw_blinded_8 = poly_zw_blinded_4.extend(2 ** (zkey.power + 3))
 
         with log_elapsed_time("calc tzh", debug, indent=1):
-            ta = (
-                poly_a_blinded_4 * poly_b_blinded_4 * poly_qm_4
-                + poly_a_blinded_4 * poly_ql_4
-                + poly_b_blinded_4 * poly_qr_4
-                + poly_c_blinded_4 * poly_qo_4
-                + poly_pi_4
-                + poly_qc_4
-            )
-            tb = (
-                (poly_a_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta]))
-                * (poly_b_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k1]))
-                * (poly_c_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k2]))
-                * poly_z_blinded_8
-                * alpha
-            )
-            tc = (
-                (poly_a_blinded_4 + poly_s1_4 * beta + gamma)
-                * (poly_b_blinded_4 + poly_s2_4 * beta + gamma)
-                * (poly_c_blinded_4 + poly_s3_4 * beta + gamma)
-                * poly_zw_blinded_8
-                * alpha
-            )
-            td = (poly_z_blinded_4 + Fr(-1)) * poly_l_4s[0] * alpha * alpha
-            tzh = ta + tb - tc + td
-            tzh.calc_coeffs_if_necessary()
+            with log_elapsed_time("calc ta", debug, indent=2):
+                ta = (
+                    poly_a_blinded_4 * poly_b_blinded_4 * poly_qm_4
+                    + poly_a_blinded_4 * poly_ql_4
+                    + poly_b_blinded_4 * poly_qr_4
+                    + poly_c_blinded_4 * poly_qo_4
+                    + poly_pi_4
+                    + poly_qc_4
+                )
+            with log_elapsed_time("calc tb", debug, indent=2):
+                tb = (
+                    (poly_a_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta]))
+                    * (poly_b_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k1]))
+                    * (poly_c_blinded_4 + Polynomial(Fr, coeffs=[gamma, beta * zkey.k2]))
+                    * alpha
+                    * poly_z_blinded_8
+                )
+            with log_elapsed_time("calc tc", debug, indent=2):
+                tc = (
+                    (poly_a_blinded_4 + poly_s1_4 * beta + gamma)
+                    * (poly_b_blinded_4 + poly_s2_4 * beta + gamma)
+                    * (poly_c_blinded_4 + poly_s3_4 * beta + gamma)
+                    * alpha
+                    * poly_zw_blinded_8
+                )
+            with log_elapsed_time("calc td", debug, indent=2):
+                td = (poly_z_blinded_4 + Fr(-1)) * poly_l_4s[0] * alpha * alpha
+            with log_elapsed_time("calc tzh", debug, indent=2):
+                tzh = ta + td + (tb - tc)
+                tzh.calc_coeffs_if_necessary()
 
         with log_elapsed_time("t_coeffs", debug, indent=1):
             t_coeffs = list(tzh.coeffs)
@@ -423,13 +428,15 @@ def prove(
         poly_r = ra + rb - rc + rd - re
 
         def div_poly(poly: Polynomial, x: GFElement) -> Polynomial:
+            assert len(poly)
             n = poly.degree()
+            poly.calc_coeffs_if_necessary(True)
             coeffs = poly.coeffs[: n + 1]
             ret = [Fr(0)] * n
             ret[n - 1] = coeffs[n]
             for i in range(n - 2, -1, -1):
                 ret[i] = ret[i + 1] * x + coeffs[i + 1]
-            assert poly[0] == ret[0] * x * Fr(-1)
+            assert poly[0] + ret[0] * x == Fr(0)
             return Polynomial(poly.gf, coeffs=ret)
 
         poly_w_zeta = (

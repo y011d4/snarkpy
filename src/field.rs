@@ -9,31 +9,34 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Mutex;
 
-fn xgcd(a: BigInt, b: BigInt) -> (BigInt, BigInt, BigInt) {
-    let zero = BigInt::zero();
-    if b == zero {
-        (a, BigInt::one(), zero)
-    } else {
-        let (d, x, y) = xgcd(b.clone(), a.clone() % b.clone());
-        (d, y.clone(), x - (a / b) * y)
-    }
-}
-
-fn xgcd_integer(a: &Integer, b: &Integer) -> (Integer, Integer, Integer) {
-    if b == &Integer::ZERO {
-        (a.clone(), Integer::ONE.clone(), Integer::ZERO)
-    } else {
-        let c = Integer::from(a % b);
-        let e = Integer::from(a / b);
-        let (d, x, y) = xgcd_integer(&b, &c);
-        (d, y.clone(), x - &e * &y)
-    }
-}
+// fn xgcd(a: BigInt, b: BigInt) -> (BigInt, BigInt, BigInt) {
+//     let zero = BigInt::zero();
+//     if b == zero {
+//         (a, BigInt::one(), zero)
+//     } else {
+//         let (d, x, y) = xgcd(b.clone(), a.clone() % b.clone());
+//         (d, y.clone(), x - (a / b) * y)
+//     }
+// }
+// 
+// fn xgcd_integer(a: &Integer, b: &Integer) -> (Integer, Integer, Integer) {
+//     if b == &Integer::ZERO {
+//         (a.clone(), Integer::ONE.clone(), Integer::ZERO)
+//     } else {
+//         let c = Integer::from(a % b);
+//         let e = Integer::from(a / b);
+//         let (d, x, y) = xgcd_integer(&b, &c);
+//         (d, y.clone(), x - &e * &y)
+//     }
+// }
 
 pub static NTH_ROOT_OF_UNITY_CACHE: Lazy<Mutex<HashMap<(Integer, Integer), GFElement>>> =
     Lazy::new(|| Mutex::new(HashMap::new()));
 
 pub static R_INFO: Lazy<Mutex<HashMap<Integer, RInfo>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+
+pub static OMEGA_POWS: Lazy<Mutex<HashMap<(Integer, usize), Vec<GFElement>>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Clone)]
 pub struct RInfo {
@@ -162,7 +165,7 @@ impl GF {
     #[getter]
     fn n8(&self) -> u64 {
         // (integer_to_bits(&self.p).len() as u64 + 7) / 8
-        (self.p.signed_bits() - 1) as u64
+        ((self.p.signed_bits() - 1 + 7) / 8) as u64
     }
 
     fn from_bytes(&self, data: &[u8], is_montgomery: bool) -> GFElement {
@@ -477,15 +480,15 @@ fn bigint_to_integer(value: &BigInt) -> Integer {
     value.to_str_radix(10).parse().unwrap()
 }
 
-fn integer_to_bits(value: &Integer) -> Vec<u8> {
-    let mut result = Vec::new();
-    let mut value = value.clone();
-    while value > Integer::ZERO {
-        // let tmp = Integer::from(&value & Integer::ONE);
-        // result.push(tmp.to_u8().unwrap());
-        let tmp = value.get_bit(0);
-        result.push(tmp as u8);
-        value >>= 1;
-    }
-    result
-}
+// fn integer_to_bits(value: &Integer) -> Vec<u8> {
+//     let mut result = Vec::new();
+//     let mut value = value.clone();
+//     while value > Integer::ZERO {
+//         // let tmp = Integer::from(&value & Integer::ONE);
+//         // result.push(tmp.to_u8().unwrap());
+//         let tmp = value.get_bit(0);
+//         result.push(tmp as u8);
+//         value >>= 1;
+//     }
+//     result
+// }

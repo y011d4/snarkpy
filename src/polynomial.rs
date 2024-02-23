@@ -6,7 +6,7 @@ use pyo3::{
 };
 use std::str::FromStr;
 
-use crate::field::{BigIntOrGFElement, GFElement, GF};
+use crate::field::{BigIntOrGFElement, GFElement, OMEGA_POWS, GF};
 
 static MAX_K: u32 = 20; // TODO: 28
 static MAX_L: u32 = 2u32.pow(MAX_K);
@@ -176,6 +176,7 @@ impl Polynomial {
             match self.coeffs {
                 Some(ref coeffs) => {
                     self.evals = Some(self.coeffs_to_evals(&coeffs)?);
+                    self.coeffs = None;
                 }
                 None => {
                     return Err(PyValueError::new_err("coeffs is None"));
@@ -194,6 +195,7 @@ impl Polynomial {
             match &self.evals {
                 Some(evals) => {
                     self.coeffs = Some(self.evals_to_coeffs(&evals)?);
+                    self.evals = None;
                 }
                 None => {
                     return Err(PyValueError::new_err("coeffs is None"));
@@ -361,16 +363,26 @@ impl Polynomial {
                 })
             }
             PolynomialOrGFElement::GFElement(b) => {
+                // self.calc_coeffs_if_necessary(None)?;
                 // let mut a = self.clone();
-                self.calc_coeffs_if_necessary(None)?;
+                // a.coeffs = Some(
+                //     a.coeffs
+                //         .unwrap()
+                //         .iter()
+                //         .map(|e| e.__mul__(&b).unwrap())
+                //         .collect(),
+                // );
+                // Ok(a)
+                self.calc_evals_if_necessary(None)?;
                 let mut a = self.clone();
-                a.coeffs = Some(
-                    a.coeffs
+                a.evals = Some(
+                    a.evals
                         .unwrap()
                         .iter()
                         .map(|e| e.__mul__(&b).unwrap())
                         .collect(),
                 );
+                a.coeffs = None;
                 Ok(a)
             }
         }
@@ -543,10 +555,12 @@ impl Polynomial {
         let len_other = other.__len__();
         if len_self > len_other {
             other.extend_internal(len_self)?;
-            other.evals = Some(other.coeffs_to_evals(&other.coeffs.as_ref().unwrap())?);
+            // other.evals = Some(other.coeffs_to_evals(&other.coeffs.as_ref().unwrap())?);
+            // other.coeffs = None;
         } else if len_self < len_other {
             self.extend_internal(len_other)?;
-            self.evals = Some(self.coeffs_to_evals(&self.coeffs.as_ref().unwrap())?);
+            // self.evals = Some(self.coeffs_to_evals(&self.coeffs.as_ref().unwrap())?);
+            // self.coeffs = None;
         }
         if self.evals.as_ref().unwrap().len() != other.evals.as_ref().unwrap().len() {
             return Err(PyRuntimeError::new_err("Lengths of evals are different"));
