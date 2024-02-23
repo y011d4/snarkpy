@@ -222,9 +222,9 @@ def prove(
         with log_elapsed_time("prepare", debug, indent=1):
             evals = [Fr(1)]
             w = Fr(1)
-            poly_s1.calc_evals_if_necessary()
-            poly_s2.calc_evals_if_necessary()
-            poly_s3.calc_evals_if_necessary()
+            # poly_s1.calc_evals_if_necessary()
+            # poly_s2.calc_evals_if_necessary()
+            # poly_s3.calc_evals_if_necessary()
             omegas = [Fr(1)]
             for _ in range(zkey.domain_size):
                 omegas.append(omegas[-1] * omega)
@@ -332,7 +332,7 @@ def prove(
                 td = (poly_z_blinded_4 + Fr(-1)) * poly_l_4s[0] * alpha * alpha
             with log_elapsed_time("calc tzh", debug, indent=2):
                 tzh = ta + td + (tb - tc)
-                tzh.calc_coeffs_if_necessary()
+                # tzh.calc_coeffs_if_necessary()
 
         with log_elapsed_time("t_coeffs", debug, indent=1):
             t_coeffs = list(tzh.coeffs)
@@ -341,6 +341,8 @@ def prove(
             for i in range(zkey.domain_size, zkey.domain_size * 4 + 6):
                 t_coeffs[i] = t_coeffs[i - zkey.domain_size] - t_coeffs[i]
                 if i > zkey.domain_size * 3 + 5 and t_coeffs[i] != Fr(0):
+                    import pdb
+                    pdb.set_trace()
                     raise RuntimeError
             assert all(c == Fr(0) for c in t_coeffs[zkey.domain_size * 3 + 6 :])
 
@@ -430,7 +432,7 @@ def prove(
         def div_poly(poly: Polynomial, x: GFElement) -> Polynomial:
             assert len(poly)
             n = poly.degree()
-            poly.calc_coeffs_if_necessary(True)
+            # poly.calc_coeffs_if_necessary()
             coeffs = poly.coeffs[: n + 1]
             ret = [Fr(0)] * n
             ret[n - 1] = coeffs[n]

@@ -29,9 +29,7 @@ static REVBITS: Lazy<Vec<u32>> = Lazy::new(|| {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct Polynomial {
-    #[pyo3(get)]
     coeffs: Option<Vec<GFElement>>,
-    #[pyo3(get)]
     evals: Option<Vec<GFElement>>,
     #[pyo3(get)]
     gf: GF,
@@ -167,52 +165,6 @@ impl Polynomial {
     //     result
     // }
 
-    fn calc_evals_if_necessary(&mut self, force: Option<bool>) -> PyResult<()> {
-        let force = match force {
-            Some(force) => force,
-            None => false,
-        };
-        if self.evals.is_none()
-            || (!self.coeffs.is_none()
-                && self.evals.as_ref().unwrap().len() < self.coeffs.as_ref().unwrap().len())
-            || (!self.coeffs.is_none() && force)
-        {
-            match self.coeffs {
-                Some(ref coeffs) => {
-                    self.evals = Some(self.coeffs_to_evals(&coeffs)?);
-                    // self.coeffs = None;
-                }
-                None => {
-                    return Err(PyValueError::new_err("coeffs is None"));
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn calc_coeffs_if_necessary(&mut self, force: Option<bool>) -> PyResult<()> {
-        let force = match force {
-            Some(force) => force,
-            None => false,
-        };
-        if self.coeffs.is_none()
-            || (!self.evals.is_none()
-                && self.coeffs.as_ref().unwrap().len() < self.evals.as_ref().unwrap().len())
-            || (!self.evals.is_none() && force)
-        {
-            match &self.evals {
-                Some(evals) => {
-                    self.coeffs = Some(self.evals_to_coeffs(&evals)?);
-                    // self.evals = None;
-                }
-                None => {
-                    return Err(PyValueError::new_err("coeffs is None"));
-                }
-            }
-        }
-        Ok(())
-    }
-
     fn __repr__(&mut self) -> PyResult<String> {
         self.calc_coeffs_if_necessary(None)?;
         let mut res = Vec::new();
@@ -278,6 +230,7 @@ impl Polynomial {
                 self.calc_coeffs_if_necessary(None)?;
                 let mut a = self.clone();
                 a.coeffs.as_mut().unwrap()[0] = a.coeffs.as_mut().unwrap()[0].__add__(&b)?;
+                a.evals = None;
                 Ok(a)
             }
         }
@@ -326,6 +279,7 @@ impl Polynomial {
                 let mut a = self.clone();
                 a.calc_coeffs_if_necessary(None)?;
                 a.coeffs.as_mut().unwrap()[0] = a.coeffs.as_mut().unwrap()[0].__sub__(&b)?;
+                a.evals = None;
                 Ok(a)
             }
         }
@@ -464,6 +418,18 @@ impl Polynomial {
         // coeffs = list(self._coeffs) + [self._Fp(0)] * (n - len(self._coeffs))
         // self = Polynomial(self._p, coeffs=coeffs)
     }
+
+    #[getter]
+    fn coeffs(&mut self) -> PyResult<Vec<GFElement>> {
+        self.calc_coeffs_if_necessary(None)?;
+        Ok(self.coeffs.as_ref().unwrap().clone())
+    }
+
+    #[getter]
+    fn evals(&mut self) -> PyResult<Vec<GFElement>> {
+        self.calc_evals_if_necessary(None)?;
+        Ok(self.evals.as_ref().unwrap().clone())
+    }
 }
 
 impl Polynomial {
@@ -561,10 +527,35 @@ impl Polynomial {
 
     fn prepare_operation(&mut self, other: &mut Self) -> PyResult<()> {
         // TODO: __len__() がやばい。 evals と coeffs が違う値を持ってしまうとき (そもそもこんなことおきるわけなくない？誰が悪い？) に異常が起きる
-        self.calc_evals_if_necessary(Some(true))?;
-        other.calc_evals_if_necessary(Some(true))?;
+
+        // println!("before");
+        // if other.evals.is_none() {
+        //     println!("{:?}", other.evals);
+        // } else {
+        //     println!("{:?}", other.evals.as_ref().unwrap().len());
+        // }
+        // self.calc_evals_if_necessary(Some(true))?;
+        // other.calc_evals_if_necessary(Some(true))?;
+        // self.calc_coeffs_if_necessary(Some(true))?;
+        // other.calc_coeffs_if_necessary(Some(true))?;
+        // println!("after");
+        // if self.evals.is_none() {
+        //     println!("{:?}", self.evals);
+        // } else {
+        //     println!("{:?}", self.evals.as_ref().unwrap().len());
+        // }
+        // if other.evals.is_none() {
+        //     println!("{:?}", other.evals);
+        // } else {
+        //     println!("{:?}", other.evals.as_ref().unwrap().len());
+        // }
         let len_self = self.__len__();
         let len_other = other.__len__();
+        // println!(
+        //     "before: self.len: {}, other.len: {}",
+        //     self.__len__(),
+        //     other.__len__()
+        // );
         if len_self > len_other {
             other.extend_internal(len_self)?;
             // other.evals = Some(other.coeffs_to_evals(&other.coeffs.as_ref().unwrap())?);
@@ -574,9 +565,16 @@ impl Polynomial {
             // self.evals = Some(self.coeffs_to_evals(&self.coeffs.as_ref().unwrap())?);
             // self.coeffs = None;
         }
+        self.calc_evals_if_necessary(Some(true))?;
+        other.calc_evals_if_necessary(Some(true))?;
         if self.evals.as_ref().unwrap().len() != other.evals.as_ref().unwrap().len() {
             return Err(PyRuntimeError::new_err("Lengths of evals are different"));
         }
+        // println!(
+        //     "after: self.len: {}, other.len: {}",
+        //     self.__len__(),
+        //     other.__len__()
+        // );
         Ok(())
     }
 
@@ -601,6 +599,52 @@ impl Polynomial {
         // assert n > len(self._coeffs)
         // coeffs = list(self._coeffs) + [self._Fp(0)] * (n - len(self._coeffs))
         // self = Polynomial(self._p, coeffs=coeffs)
+    }
+
+    fn calc_evals_if_necessary(&mut self, force: Option<bool>) -> PyResult<()> {
+        let force = match force {
+            Some(force) => force,
+            None => false,
+        };
+        if self.evals.is_none()
+            || (!self.coeffs.is_none()
+                && self.evals.as_ref().unwrap().len() < self.coeffs.as_ref().unwrap().len())
+        // || (!self.coeffs.is_none() && force)
+        {
+            match self.coeffs {
+                Some(ref coeffs) => {
+                    self.evals = Some(self.coeffs_to_evals(&coeffs)?);
+                    // self.coeffs = None;
+                }
+                None => {
+                    return Err(PyValueError::new_err("coeffs is None"));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn calc_coeffs_if_necessary(&mut self, force: Option<bool>) -> PyResult<()> {
+        let force = match force {
+            Some(force) => force,
+            None => false,
+        };
+        if self.coeffs.is_none()
+            || (!self.evals.is_none()
+                && self.coeffs.as_ref().unwrap().len() < self.evals.as_ref().unwrap().len())
+        // || (!self.evals.is_none() && force)
+        {
+            match &self.evals {
+                Some(evals) => {
+                    self.coeffs = Some(self.evals_to_coeffs(&evals)?);
+                    // self.evals = None;
+                }
+                None => {
+                    return Err(PyValueError::new_err("coeffs is None"));
+                }
+            }
+        }
+        Ok(())
     }
 }
 
