@@ -29,6 +29,7 @@ dependencies = [
 dev = [
     "ipython>=8.21.0",
     "py-spy>=0.3.14",
+    "pytest>=8.0.1",
 ]
 
 [project.scripts]

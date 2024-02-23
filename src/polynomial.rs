@@ -6,7 +6,7 @@ use pyo3::{
 };
 use std::str::FromStr;
 
-use crate::field::{BigIntOrGFElement, GFElement, OMEGA_POWS, GF};
+use crate::field::{BigIntOrGFElement, GFElement, GF, OMEGA_POWS};
 
 static MAX_K: u32 = 20; // TODO: 28
 static MAX_L: u32 = 2u32.pow(MAX_K);
@@ -172,11 +172,15 @@ impl Polynomial {
             Some(force) => force,
             None => false,
         };
-        if self.evals.is_none() || (!self.coeffs.is_none() && force) {
+        if self.evals.is_none()
+            || (!self.coeffs.is_none()
+                && self.evals.as_ref().unwrap().len() < self.coeffs.as_ref().unwrap().len())
+            || (!self.coeffs.is_none() && force)
+        {
             match self.coeffs {
                 Some(ref coeffs) => {
                     self.evals = Some(self.coeffs_to_evals(&coeffs)?);
-                    self.coeffs = None;
+                    // self.coeffs = None;
                 }
                 None => {
                     return Err(PyValueError::new_err("coeffs is None"));
@@ -191,11 +195,15 @@ impl Polynomial {
             Some(force) => force,
             None => false,
         };
-        if self.coeffs.is_none() || (!self.evals.is_none() && force) {
+        if self.coeffs.is_none()
+            || (!self.evals.is_none()
+                && self.coeffs.as_ref().unwrap().len() < self.evals.as_ref().unwrap().len())
+            || (!self.evals.is_none() && force)
+        {
             match &self.evals {
                 Some(evals) => {
                     self.coeffs = Some(self.evals_to_coeffs(&evals)?);
-                    self.evals = None;
+                    // self.evals = None;
                 }
                 None => {
                     return Err(PyValueError::new_err("coeffs is None"));
@@ -412,7 +420,11 @@ impl Polynomial {
         // return self._coeffs[idx]
         // let mut a = self.clone();
         self.calc_coeffs_if_necessary(None)?;
-        Ok(self.coeffs.as_ref().unwrap()[idx].clone())
+        if idx < self.__len__() {
+            Ok(self.coeffs.as_ref().unwrap()[idx].clone())
+        } else {
+            Ok(self.gf.zero())
+        }
     }
 
     fn degree(&mut self) -> PyResult<usize> {
@@ -437,10 +449,10 @@ impl Polynomial {
     fn extend(&self, n: usize) -> PyResult<Polynomial> {
         let mut a = self.clone();
         a.calc_coeffs_if_necessary(Some(true))?;
-        if self.coeffs.as_ref().unwrap().len() >= n {
+        if a.coeffs.as_ref().unwrap().len() >= n {
             return Ok(a);
         }
-        for _ in 0..(n - self.coeffs.as_ref().unwrap().len()) {
+        for _ in 0..(n - a.coeffs.as_ref().unwrap().len()) {
             a.coeffs.as_mut().unwrap().push(self.gf.zero());
         }
         a.calc_evals_if_necessary(Some(true))?;

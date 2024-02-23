@@ -18,7 +18,7 @@ use std::sync::Mutex;
 //         (d, y.clone(), x - (a / b) * y)
 //     }
 // }
-// 
+//
 // fn xgcd_integer(a: &Integer, b: &Integer) -> (Integer, Integer, Integer) {
 //     if b == &Integer::ZERO {
 //         (a.clone(), Integer::ONE.clone(), Integer::ZERO)
@@ -170,8 +170,9 @@ impl GF {
 
     fn from_bytes(&self, data: &[u8], is_montgomery: bool) -> GFElement {
         let value = BigInt::from_bytes_le(num_bigint::Sign::Plus, data);
+        let p = integer_to_bigint(&self.p);
         // value %= &self.p.try_into().unwrap();
-        GFElement::new(value, self.clone(), is_montgomery)
+        GFElement::new(value % p, self.clone(), is_montgomery)
     }
 
     fn to_bytes<'a>(&self, value: GFElement, py: Python<'a>) -> &'a PyBytes {
@@ -316,6 +317,7 @@ impl GFElement {
     }
 
     fn __deepcopy__(&self, _memo: &PyDict) -> Self {
+        // implemented for pickle
         self.clone()
     }
 }
