@@ -1,17 +1,10 @@
 /target
 /venv
 *.so
-
-
-# Added by cargo
-#
-# already existing elements were commented out
-
-#/target
-
-
-# Added by cargo
-#
-# already existing elements were commented out
-
-#/target
+/node_modules
+/circuits
+vkey
+zkey
+wtns
+ptau
+circom

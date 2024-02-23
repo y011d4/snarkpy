@@ -1,0 +1,7 @@
+{
+  "name": "snarkpy",
+  "dependencies": {
+    "circomlib": "^2.0.5",
+    "snarkjs": "^0.7.3"
+  }
+}

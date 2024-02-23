@@ -17,19 +17,20 @@ git clone https://github.com/y011d4/snarkpy.git
 cd snarkpy
 pytyhon3 -m venv venv
 source venv/bin/activate
-maturin develop --release
+make install
 ```
 
 ## Usage
 
 First, prepare `circuit_final.zkey`, `witness.wtns` and `verification_key.json` by referring to the [README in snarkjs](https://github.com/iden3/snarkjs).
+If you only need test data, you can make them by just typing `make test-data`.
 
 ```sh
 # plonk prove
-snarkpy plonk prove circuit_final.zkey witness.wtns proof.json public.json
+snarkpy plonk prove zkey wtns proof.json public.json
 
 # plonk verify
-snarkpy plonk verify circuit_final.zkey witness.wtns proof.json public.json
+snarkpy plonk verify vkey public.json proof.json
 ```
 
 ## TODO
