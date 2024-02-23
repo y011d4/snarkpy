@@ -4,6 +4,7 @@ use pyo3::{
     exceptions::{PyRuntimeError, PyValueError},
     prelude::*,
 };
+use rayon::prelude::*;
 use std::str::FromStr;
 
 use crate::field::{BigIntOrGFElement, GFElement, GF, OMEGA_POWS};
@@ -215,8 +216,8 @@ impl Polynomial {
                     .evals
                     .as_ref()
                     .unwrap()
-                    .iter()
-                    .zip(b.evals.as_ref().unwrap().iter())
+                    .par_iter()
+                    .zip(b.evals.as_ref().unwrap())
                     .map(|(e1, e2)| e1.__add__(e2).unwrap())
                     .collect();
                 Ok(Polynomial {
@@ -238,7 +239,9 @@ impl Polynomial {
                     None => None,
                 };
                 a.evals = match a.evals {
-                    Some(ref evals) => Some(evals.iter().map(|e| e.__add__(&b).unwrap()).collect()),
+                    Some(ref evals) => {
+                        Some(evals.par_iter().map(|e| e.__add__(&b).unwrap()).collect())
+                    }
                     None => None,
                 };
                 Ok(a)
@@ -275,9 +278,9 @@ impl Polynomial {
                     .evals
                     .as_ref()
                     .unwrap()
-                    .iter()
-                    .zip(b.evals.unwrap().iter())
-                    .map(|(e1, e2)| e1.__sub__(e2).unwrap())
+                    .par_iter()
+                    .zip(b.evals.unwrap())
+                    .map(|(e1, e2)| e1.__sub__(&e2).unwrap())
                     .collect();
                 Ok(Polynomial {
                     coeffs: None,
@@ -297,7 +300,9 @@ impl Polynomial {
                     None => None,
                 };
                 a.evals = match a.evals {
-                    Some(ref evals) => Some(evals.iter().map(|e| e.__sub__(&b).unwrap()).collect()),
+                    Some(ref evals) => {
+                        Some(evals.par_iter().map(|e| e.__sub__(&b).unwrap()).collect())
+                    }
                     None => None,
                 };
                 Ok(a)
@@ -334,9 +339,9 @@ impl Polynomial {
                     .evals
                     .as_ref()
                     .unwrap()
-                    .iter()
-                    .zip(b.evals.unwrap().iter())
-                    .map(|(e1, e2)| e1.__mul__(e2).unwrap())
+                    .par_iter()
+                    .zip(b.evals.unwrap())
+                    .map(|(e1, e2)| e1.__mul__(&e2).unwrap())
                     .collect();
                 Ok(Polynomial {
                     coeffs: None,
@@ -365,12 +370,14 @@ impl Polynomial {
                 //         .collect(),
                 // );
                 a.evals = match a.evals {
-                    Some(ref evals) => Some(evals.iter().map(|e| e.__mul__(&b).unwrap()).collect()),
+                    Some(ref evals) => {
+                        Some(evals.par_iter().map(|e| e.__mul__(&b).unwrap()).collect())
+                    }
                     None => None,
                 };
                 a.coeffs = match a.coeffs {
                     Some(ref coeffs) => {
-                        Some(coeffs.iter().map(|e| e.__mul__(&b).unwrap()).collect())
+                        Some(coeffs.par_iter().map(|e| e.__mul__(&b).unwrap()).collect())
                     }
                     None => None,
                 };
@@ -551,7 +558,7 @@ impl Polynomial {
             );
         }
         let result = self.fft(evals, &omega_invs)?;
-        Ok(result.iter().map(|x| x.__mul__(&ninv).unwrap()).collect())
+        Ok(result.par_iter().map(|x| x.__mul__(&ninv).unwrap()).collect())
     }
 
     fn prepare_operation(&mut self, other: &mut Self) -> PyResult<()> {
