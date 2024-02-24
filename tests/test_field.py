@@ -1,5 +1,5 @@
-from snarkpy.field import GF, GFElement, GFPolynomial, GFPolynomialElement
-from snarkpy.polynomial import Polynomial, SparsePolynomial
+from snarkpy.field import GF, GFElement, GFPolynomial
+from snarkpy.polynomial import SparsePolynomial
 
 
 class TestGF:

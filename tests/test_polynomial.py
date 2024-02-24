@@ -1,6 +1,6 @@
 import pytest
 
-from snarkpy.field import GF, GFElement
+from snarkpy.field import GF
 from snarkpy.polynomial import Polynomial, SparsePolynomial
 
 

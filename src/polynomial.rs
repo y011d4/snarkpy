@@ -225,10 +225,30 @@ impl Polynomial {
     }
 
     pub fn __add__(&mut self, other: PolynomialOrGFElement) -> PyResult<Polynomial> {
-        // TODO: coeffs が両方揃っているときはそっちで計算するようにする
         match other {
             PolynomialOrGFElement::Polynomial(mut b) => {
                 // let mut a = self.clone();
+                if let Some(a) = self.coeffs.as_mut() {
+                    if let Some(b) = b.coeffs.as_mut() {
+                        let len = a.len().max(b.len());
+                        for _ in 0..(len - a.len()) {
+                            a.push(self.gf.zero());
+                        }
+                        for _ in 0..(len - b.len()) {
+                            b.push(self.gf.zero());
+                        }
+                        return Ok(Polynomial {
+                            gf: self.gf.clone(),
+                            coeffs: Some(
+                                a.iter()
+                                    .zip(b.iter())
+                                    .map(|(x, y)| x.__add__(y).unwrap())
+                                    .collect(),
+                            ),
+                            evals: None,
+                        });
+                    }
+                }
                 self.prepare_operation(&mut b, false)?;
                 let evals: Vec<GFElement> = self
                     .evals
@@ -287,10 +307,30 @@ impl Polynomial {
         //     raise RuntimeError
     }
 
-    pub fn __sub__(&self, other: PolynomialOrGFElement) -> PyResult<Polynomial> {
-        // TODO: coeffs が両方揃っているときはそっちで計算するようにする
+    pub fn __sub__(&mut self, other: PolynomialOrGFElement) -> PyResult<Polynomial> {
         match other {
             PolynomialOrGFElement::Polynomial(mut b) => {
+                if let Some(a) = self.coeffs.as_mut() {
+                    if let Some(b) = b.coeffs.as_mut() {
+                        let len = a.len().max(b.len());
+                        for _ in 0..(len - a.len()) {
+                            a.push(self.gf.zero());
+                        }
+                        for _ in 0..(len - b.len()) {
+                            b.push(self.gf.zero());
+                        }
+                        return Ok(Polynomial {
+                            gf: self.gf.clone(),
+                            coeffs: Some(
+                                a.iter()
+                                    .zip(b.iter())
+                                    .map(|(x, y)| x.__sub__(y).unwrap())
+                                    .collect(),
+                            ),
+                            evals: None,
+                        });
+                    }
+                }
                 let mut a = self.clone();
                 a.prepare_operation(&mut b, false)?;
                 let evals: Vec<GFElement> = a
@@ -823,7 +863,7 @@ pub fn xgcd(
         Ok((
             d,
             y.clone(),
-            x.__sub__(PolynomialOrGFElement::Polynomial(
+            x.clone().__sub__(PolynomialOrGFElement::Polynomial(
                 q.__mul__(PolynomialOrGFElement::Polynomial(y))?,
             ))?,
         ))

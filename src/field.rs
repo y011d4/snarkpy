@@ -556,7 +556,7 @@ impl GFPolynomialElement {
         })
     }
 
-    pub fn __sub__(&self, other: &Self) -> PyResult<Self> {
+    pub fn __sub__(&mut self, other: &Self) -> PyResult<Self> {
         Ok(GFPolynomialElement {
             value: self
                 .value
