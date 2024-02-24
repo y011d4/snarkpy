@@ -230,40 +230,54 @@ def prove(
                 omegas.append(omegas[-1] * omega)
             assert omegas.pop() == Fr(1)
         with log_elapsed_time("poly", debug, indent=1):
-            tmp_an = poly_a + Polynomial(
-                Fr, evals=[gamma + beta * omega for omega in omegas]
-            )
-            tmp_bn = poly_b + Polynomial(
-                Fr, evals=[gamma + beta * zkey.k1 * omega for omega in omegas]
-            )
-            tmp_cn = poly_c + Polynomial(
-                Fr, evals=[gamma + beta * zkey.k2 * omega for omega in omegas]
-            )
-            tmp_ad = (
-                poly_a + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s1 * beta
-            )
-            tmp_bd = (
-                poly_b + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s2 * beta
-            )
-            tmp_cd = (
-                poly_c + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s3 * beta
-            )
-            tmp_n = tmp_an * tmp_bn * tmp_cn
-            tmp_d = tmp_ad * tmp_bd * tmp_cd
+            # tmp_an = poly_a + Polynomial(
+            #     Fr, evals=[gamma + beta * omega for omega in omegas]
+            # )
+            # tmp_bn = poly_b + Polynomial(
+            #     Fr, evals=[gamma + beta * zkey.k1 * omega for omega in omegas]
+            # )
+            # tmp_cn = poly_c + Polynomial(
+            #     Fr, evals=[gamma + beta * zkey.k2 * omega for omega in omegas]
+            # )
+            # tmp_ad = (
+            #     poly_a + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s1 * beta
+            # )
+            # tmp_bd = (
+            #     poly_b + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s2 * beta
+            # )
+            # tmp_cd = (
+            #     poly_c + Polynomial(Fr, evals=[gamma] * zkey.domain_size) + poly_s3 * beta
+            # )
+            # tmp_n = tmp_an * tmp_bn * tmp_cn
+            # tmp_d = tmp_ad * tmp_bd * tmp_cd
+            poly_a_evals = poly_a.evals
+            poly_b_evals = poly_b.evals
+            poly_c_evals = poly_c.evals
+            poly_s1_evals = poly_s1.evals
+            poly_s2_evals = poly_s2.evals
+            poly_s3_evals = poly_s3.evals
+            assert len(poly_a_evals) == zkey.domain_size
+            assert len(poly_b_evals) == zkey.domain_size
+            assert len(poly_c_evals) == zkey.domain_size
+            assert len(poly_s1_evals) == zkey.domain_size
+            assert len(poly_s2_evals) == zkey.domain_size
+            assert len(poly_s3_evals) == zkey.domain_size
         with log_elapsed_time("evals", debug, indent=1):
-            tmp_n_evals = tmp_n.evals
-            tmp_d_evals = tmp_d.evals
+            # tmp_n_evals = tmp_n.evals
+            # tmp_d_evals = tmp_d.evals
+            # assert len(tmp_n_evals) == zkey.domain_size
+            # assert len(tmp_d_evals) == zkey.domain_size
             for i in range(zkey.domain_size):
                 res = evals[-1]
-                # res = res * (poly_a.evals[i] + beta * w + gamma)
-                # res = res * (poly_b.evals[i] + beta * zkey.k1 * w + gamma)
-                # res = res * (poly_c.evals[i] + beta * zkey.k2 * w + gamma)
-                # res = res / (poly_a.evals[i] + poly_s1.evals[i] * beta + gamma)
-                # res = res / (poly_b.evals[i] + poly_s2.evals[i] * beta + gamma)
-                # res = res / (poly_c.evals[i] + poly_s3.evals[i] * beta + gamma)
-                res = res * tmp_n_evals[i] / tmp_d_evals[i]
+                res = res * (poly_a_evals[i] + beta * w + gamma)
+                res = res * (poly_b_evals[i] + beta * zkey.k1 * w + gamma)
+                res = res * (poly_c_evals[i] + beta * zkey.k2 * w + gamma)
+                res = res / (poly_a_evals[i] + poly_s1_evals[i] * beta + gamma)
+                res = res / (poly_b_evals[i] + poly_s2_evals[i] * beta + gamma)
+                res = res / (poly_c_evals[i] + poly_s3_evals[i] * beta + gamma)
+                # res = res * tmp_n_evals[i] / tmp_d_evals[i]
                 evals.append(res)
-                # w = w * omega
+                w = w * omega
             assert evals.pop() == Fr(1)
         with log_elapsed_time("make poly", debug, indent=1):
             poly_z = Polynomial(Fr, evals=evals)

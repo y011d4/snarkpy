@@ -9,6 +9,10 @@ use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Mutex;
 
+use crate::polynomial::{
+    sparse_to_dense, xgcd, Polynomial, PolynomialOrGFElement, SparsePolynomial,
+};
+
 // fn xgcd(a: BigInt, b: BigInt) -> (BigInt, BigInt, BigInt) {
 //     let zero = BigInt::zero();
 //     if b == zero {
@@ -63,7 +67,7 @@ pub struct GF {
 #[derive(Clone, Debug)]
 pub struct GFElement {
     #[pyo3(get)]
-    gf: GF,
+    pub gf: GF,
     value: Integer,
 }
 
@@ -71,6 +75,20 @@ pub struct GFElement {
 pub enum BigIntOrGFElement {
     BigInt(BigInt),
     GFElement(GFElement),
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct GFPolynomial {
+    gf: GF,
+    modulus: SparsePolynomial,
+}
+
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct GFPolynomialElement {
+    value: Polynomial,
+    field: GFPolynomial,
 }
 
 #[pymethods]
@@ -482,15 +500,176 @@ fn bigint_to_integer(value: &BigInt) -> Integer {
     value.to_str_radix(10).parse().unwrap()
 }
 
-// fn integer_to_bits(value: &Integer) -> Vec<u8> {
-//     let mut result = Vec::new();
-//     let mut value = value.clone();
-//     while value > Integer::ZERO {
-//         // let tmp = Integer::from(&value & Integer::ONE);
-//         // result.push(tmp.to_u8().unwrap());
-//         let tmp = value.get_bit(0);
-//         result.push(tmp as u8);
-//         value >>= 1;
-//     }
-//     result
-// }
+#[pymethods]
+impl GFPolynomial {
+    #[new]
+    fn new(gf: GF, modulus: SparsePolynomial) -> PyResult<Self> {
+        // let integer_p = bigint_to_integer(&p);
+        Ok(Self { gf, modulus })
+    }
+
+    pub fn __call__(&self, value: Vec<BigIntOrGFElement>) -> PyResult<GFPolynomialElement> {
+        Ok(GFPolynomialElement {
+            value: Polynomial::new(self.gf.clone(), Some(value), None)?
+                .__divmod__(&self.modulus)?
+                .1,
+            field: self.clone(),
+        })
+    }
+
+    fn __repr__(&mut self) -> PyResult<String> {
+        Ok(format!("F_{}^{}", self.gf.p, self.modulus.degree()))
+    }
+
+    pub fn __str__(&mut self) -> PyResult<String> {
+        Ok(format!("F_{}^{}", self.gf.p, self.modulus.degree()))
+    }
+
+    fn one(&self) -> GFPolynomialElement {
+        GFPolynomialElement {
+            value: Polynomial::new(
+                self.gf.clone(),
+                Some(vec![BigIntOrGFElement::GFElement(self.gf.one())]),
+                None,
+            )
+            .unwrap(),
+            field: self.clone(),
+        }
+    }
+}
+
+#[pymethods]
+impl GFPolynomialElement {
+    #[new]
+    pub fn new(field: GFPolynomial, value: Polynomial) -> Self {
+        GFPolynomialElement { value, field }
+    }
+
+    pub fn __add__(&mut self, other: &Self) -> PyResult<Self> {
+        Ok(GFPolynomialElement {
+            value: self
+                .value
+                .__add__(PolynomialOrGFElement::Polynomial(other.value.clone()))?
+                .__divmod__(&self.field.modulus)?
+                .1,
+            field: self.field.clone(),
+        })
+    }
+
+    pub fn __sub__(&self, other: &Self) -> PyResult<Self> {
+        Ok(GFPolynomialElement {
+            value: self
+                .value
+                .__sub__(PolynomialOrGFElement::Polynomial(other.value.clone()))?
+                .__divmod__(&self.field.modulus)?
+                .1,
+            field: self.field.clone(),
+        })
+    }
+
+    pub fn __mul__(&mut self, other: &mut Self) -> PyResult<Self> {
+        let mut a = self.value.__divmod__(&self.field.modulus)?.1;
+        let mut b = other.value.__divmod__(&self.field.modulus)?.1;
+        let n = a.degree()? + b.degree()? + 1;
+        let mut value: Vec<BigIntOrGFElement> = Vec::new();
+        for idx in 0..n {
+            let mut res = self.field.gf.zero();
+            for i in 0..(idx + 1).min(a.degree()? + 1) {
+                let j = idx - i;
+                if j <= b.degree()? {
+                    res = res.__add__(&a.coeffs()?[i].__mul__(&b.coeffs()?[j])?)?;
+                }
+            }
+            value.push(BigIntOrGFElement::GFElement(res));
+        }
+        Ok(GFPolynomialElement {
+            value: Polynomial::new(self.field.gf.clone(), Some(value), None)?
+                .__divmod__(&self.field.modulus)?
+                .1,
+            field: self.field.clone(),
+        })
+    }
+
+    fn __invert__(&self) -> PyResult<Self> {
+        let mut result = xgcd(
+            &mut self.value.clone(),
+            &mut sparse_to_dense(&self.field.modulus)?,
+        )?;
+        Ok(GFPolynomialElement {
+            value: result.1.__mul__(PolynomialOrGFElement::GFElement(
+                result.0.coeffs()?[0].__invert__(),
+            ))?,
+            field: self.field.clone(),
+        })
+    }
+
+    pub fn __truediv__(&mut self, other: &Self) -> PyResult<Self> {
+        // if self.gf != other.gf {
+        //     return Err(PyValueError::new_err("GF mismatch"));
+        // }
+        self.__mul__(&mut other.__invert__()?)
+    }
+
+    pub fn __pow__(&self, other: BigInt, p: Option<BigInt>) -> PyResult<Self> {
+        if let Some(p) = p {
+            let p: Integer = bigint_to_integer(&p);
+            if p != self.field.gf.p {
+                return Err(PyValueError::new_err("GF mismatch"));
+            }
+        }
+        let p_1 = self.field.gf.p.clone() - Integer::ONE;
+        let mut b = bigint_to_integer(&other) % &p_1;
+        if b < Integer::ZERO {
+            b += &p_1;
+        }
+        let bitnum = b.signed_bits();
+        let mut a0 = self.field.one();
+        let mut a1 = self.clone();
+        for i in (0..bitnum - 1).rev() {
+            let bit_is_one = b.get_bit(i);
+            if bit_is_one {
+                a0 = a0.__mul__(&mut a1.clone())?;
+                a1 = a1.__mul__(&mut a1.clone())?;
+            } else {
+                a1 = a0.__mul__(&mut a1)?;
+                a0 = a0.__mul__(&mut a0.clone())?;
+            }
+        }
+        //
+        // let b_bits = integer_to_bits(&b);
+        // let mut a0 = self.to_montgomery(Integer::ONE);
+        // let mut a1 = a.clone();
+        // for bit in b_bits.iter().rev() {
+        //     match bit {
+        //         0 => {
+        //             a1 = self.mul(&a0, &a1);
+        //             a0 = self.mul(&a0, &a0);
+        //         }
+        //         1 => {
+        //             a0 = self.mul(&a0, &a1);
+        //             a1 = self.mul(&a1, &a1);
+        //         }
+        //         _ => panic!("Invalid bit"),
+        //     }
+        // }
+        Ok(a0)
+    }
+
+    fn __repr__(&mut self) -> PyResult<String> {
+        Ok(format!("{} in {}", self.__str__()?, self.field.__repr__()?))
+    }
+
+    pub fn __str__(&mut self) -> PyResult<String> {
+        self.value.__str__()
+    }
+
+    fn __deepcopy__(&self, _memo: &PyDict) -> Self {
+        // implemented for pickle
+        self.clone()
+    }
+
+    #[getter]
+    fn coeffs(&mut self) -> PyResult<Vec<GFElement>> {
+        self.value.coeffs()
+    }
+}

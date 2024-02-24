@@ -4,6 +4,8 @@ if use_rust:
 
     GF = field.GF
     GFElement = field.GFElement
+    GFPolynomial = field.GFPolynomial
+    GFPolynomialElement = field.GFPolynomialElement
 else:
     from functools import cache
     from math import ceil

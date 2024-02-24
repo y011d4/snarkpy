@@ -26,6 +26,10 @@ class TestPolynomial:
         poly = Polynomial(self.gf, coeffs=[1, 2, 3, 4])
         assert repr(poly) == "1 + 2 * x^1 + 3 * x^2 + 4 * x^3 in F_65537"
 
+    def test_str(self) -> None:
+        poly = Polynomial(self.gf, coeffs=[1, 2, 3, 4])
+        assert str(poly) == "1 + 2 * x^1 + 3 * x^2 + 4 * x^3"
+
     def test_len(self) -> None:
         poly = Polynomial(self.gf, coeffs=[1, 2, 3])
         assert len(poly) == 4
@@ -43,10 +47,15 @@ class TestPolynomial:
         assert actual.evals == [self.gf(-3), self.gf(2), self.gf(3), self.gf(4)]
 
     def test_mul(self) -> None:
-        poly1 = Polynomial(self.gf, evals=[1, 2, 3, 4])
-        poly2 = Polynomial(self.gf, coeffs=[1, 1, 1, 1])
+        poly1 = Polynomial(self.gf, coeffs=[1, 2])
+        poly2 = Polynomial(self.gf, coeffs=[2, 3])
         actual = poly1 * poly2
-        assert actual.evals == [self.gf(4), self.gf(0), self.gf(0), self.gf(0)]
+        assert actual.coeffs == [
+            self.gf(2),
+            self.gf(7),
+            self.gf(6),
+            self.gf(0),
+        ]
 
     def test_get_item(self) -> None:
         poly = Polynomial(self.gf, evals=[4, 0, 0, 0])
@@ -136,3 +145,7 @@ class TestSparsePolynomial:
     def test_repr(self) -> None:
         poly = SparsePolynomial(self.gf, coeffs=[(0, 10), (1, 20), (5, 30)])
         assert repr(poly) == "10 + 20 * x^1 + 30 * x^5 in F_65537"
+
+    def test_degree(self) -> None:
+        poly = SparsePolynomial(self.gf, coeffs=[(0, 10), (1, 20), (5, 30)])
+        assert poly.degree() == 5

@@ -1,4 +1,5 @@
-from snarkpy.field import GF, GFElement
+from snarkpy.field import GF, GFElement, GFPolynomial, GFPolynomialElement
+from snarkpy.polynomial import Polynomial, SparsePolynomial
 
 
 class TestGF:
@@ -76,3 +77,88 @@ class TestGFElement:
 
     def test_str(self) -> None:
         assert str(self.gf(3)) == "3"
+
+
+class TestGFPolynomial:
+    def setup_method(self) -> None:
+        self.p = 65537
+        self.gf = GF(self.p, 2**17)
+        coeffs = [(0, 3), (2, 1)]
+        modulus = SparsePolynomial(self.gf, coeffs)
+        self.gf_polynomial = GFPolynomial(self.gf, modulus)
+
+    def test_call(self) -> None:
+        elem = self.gf_polynomial([1, 2])
+        assert elem.coeffs == [self.gf(1), self.gf(2)]
+        elem = self.gf_polynomial([1, 2, 3])
+        assert elem.coeffs == [
+            self.gf(1 - 9),
+            self.gf(2),
+        ]  # 3x^2 + 2x + 1 = 2x - 8 mod x^2 + 3
+
+    def test_repr(self) -> None:
+        assert repr(self.gf_polynomial) == f"F_{self.p}^2"
+
+    def test_one(self) -> None:
+        assert self.gf_polynomial.one().coeffs == [self.gf(1)]
+
+
+class TestGFPolynomialElement:
+    def setup_method(self) -> None:
+        self.p = 65537
+        self.gf = GF(self.p, 2**17)
+        coeffs = [(0, 3), (2, 1)]
+        modulus = SparsePolynomial(self.gf, coeffs)
+        self.gf_polynomial = GFPolynomial(self.gf, modulus)
+
+    def test_add(self) -> None:
+        elem1 = self.gf_polynomial([1, 2])
+        elem2 = self.gf_polynomial([3, 4])
+        assert (elem1 + elem2).coeffs == [self.gf(4), self.gf(6)]
+
+    def test_sub(self) -> None:
+        elem1 = self.gf_polynomial([1, 2])
+        elem2 = self.gf_polynomial([3, 4])
+        assert (elem1 - elem2).coeffs == [self.gf(-2), self.gf(-2)]
+
+    def test_mul(self) -> None:
+        elem1 = self.gf_polynomial([1, 2])
+        elem2 = self.gf_polynomial([3, 4])
+        assert (elem1 * elem2).coeffs == [
+            self.gf(-21),
+            self.gf(10),
+        ]  # 3 + 10x + 8x^2 = -21 + 10x mod x^2 + 3
+
+    def test_invert(self) -> None:
+        elem = self.gf_polynomial([1, 2])
+        assert (~elem).coeffs == [
+            self.gf(15124),
+            self.gf(35289),
+        ]  # 15124 + (2*15124+35289)x + 2*35289x^2 = 1 mod x^2 + 3
+
+    def test_truediv(self) -> None:
+        elem1 = self.gf_polynomial([1, 2])
+        elem2 = self.gf_polynomial([3, 4])
+        assert (elem1 / elem2).coeffs == [
+            self.gf(27595),
+            self.gf(50590),
+        ]
+
+    def test_pow(self) -> None:
+        elem = self.gf_polynomial([1, 2])
+        assert (elem**3).coeffs == [
+            self.gf(65502),
+            self.gf(65519),
+        ]
+
+    def test_repr(self) -> None:
+        elem = self.gf_polynomial([1, 2])
+        assert repr(elem) == "1 + 2 * x^1 in F_65537^2"
+
+    def test_str(self) -> None:
+        elem = self.gf_polynomial([1, 2])
+        assert str(elem) == "1 + 2 * x^1"
+
+    def test_coeffs(self) -> None:
+        elem = self.gf_polynomial([1, 2])
+        assert elem.coeffs == [self.gf(1), self.gf(2)]
