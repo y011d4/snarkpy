@@ -3,6 +3,7 @@ if use_rust:
     from snarkpy._snarkpy import polynomial
 
     Polynomial = polynomial.Polynomial
+    SparsePolynomial = polynomial.SparsePolynomial
 else:
 
     from math import ceil, log2

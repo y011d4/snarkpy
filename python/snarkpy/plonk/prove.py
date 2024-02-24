@@ -12,7 +12,7 @@ from py_ecc.optimized_bn128 import FQ
 from snarkpy.elliptic import exp_tau
 from snarkpy.field import GF, GFElement
 from snarkpy.hash import keccak
-from snarkpy.polynomial import Polynomial
+from snarkpy.polynomial import Polynomial, SparsePolynomial
 from snarkpy.plonk.parse import parse_wtns, parse_zkey
 
 
@@ -335,16 +335,18 @@ def prove(
                 # tzh.calc_coeffs_if_necessary()
 
         with log_elapsed_time("t_coeffs", debug, indent=1):
-            t_coeffs = list(tzh.coeffs)
-            for i in range(zkey.domain_size):
-                t_coeffs[i] = t_coeffs[i] * Fr(-1)
-            for i in range(zkey.domain_size, zkey.domain_size * 4 + 6):
-                t_coeffs[i] = t_coeffs[i - zkey.domain_size] - t_coeffs[i]
-                if i > zkey.domain_size * 3 + 5 and t_coeffs[i] != Fr(0):
-                    import pdb
-                    pdb.set_trace()
-                    raise RuntimeError
-            assert all(c == Fr(0) for c in t_coeffs[zkey.domain_size * 3 + 6 :])
+            poly_t, tmp = divmod(tzh, SparsePolynomial(Fr, coeffs=[(0, -1), (zkey.domain_size, 1)]))
+            t_coeffs = poly_t.coeffs
+            assert all([int(c) == 0 for c in tmp.coeffs])
+        # with log_elapsed_time("t_coeffs", debug, indent=1):
+        #     t_coeffs = list(tzh.coeffs)
+        #     for i in range(zkey.domain_size):
+        #         t_coeffs[i] = t_coeffs[i] * Fr(-1)
+        #     for i in range(zkey.domain_size, zkey.domain_size * 4 + 6):
+        #         t_coeffs[i] = t_coeffs[i - zkey.domain_size] - t_coeffs[i]
+        #         if i > zkey.domain_size * 3 + 5 and t_coeffs[i] != Fr(0):
+        #             raise RuntimeError
+        #     assert all(c == Fr(0) for c in t_coeffs[zkey.domain_size * 3 + 6 :])
 
         with log_elapsed_time("poly_t", debug, indent=1):
             poly_t_low = Polynomial(Fr, coeffs=t_coeffs[: zkey.domain_size] + [b[9]])
@@ -429,18 +431,6 @@ def prove(
         ) * poly_zh_4(zeta)
         poly_r = ra + rb - rc + rd - re
 
-        def div_poly(poly: Polynomial, x: GFElement) -> Polynomial:
-            assert len(poly)
-            n = poly.degree()
-            # poly.calc_coeffs_if_necessary()
-            coeffs = poly.coeffs[: n + 1]
-            ret = [Fr(0)] * n
-            ret[n - 1] = coeffs[n]
-            for i in range(n - 2, -1, -1):
-                ret[i] = ret[i + 1] * x + coeffs[i + 1]
-            assert poly[0] + ret[0] * x == Fr(0)
-            return Polynomial(poly.gf, coeffs=ret)
-
         poly_w_zeta = (
             poly_r
             + (poly_a_blinded_4 - eval_a) * v
@@ -449,10 +439,12 @@ def prove(
             + (poly_s1_4 - eval_s1) * v**4
             + (poly_s2_4 - eval_s2) * v**5
         )
-        poly_w_zeta = div_poly(poly_w_zeta, zeta)
+        poly_w_zeta, tmp = divmod(poly_w_zeta, SparsePolynomial(Fr, coeffs=[(0, zeta * Fr(-1)), (1, 1)]))
+        assert all([int(c) == 0 for c in tmp.coeffs])
 
         poly_w_zetaw = poly_z_blinded_4 - eval_zw
-        poly_w_zetaw = div_poly(poly_w_zetaw, zeta * omega)
+        poly_w_zetaw, tmp = divmod(poly_w_zetaw, SparsePolynomial(Fr, coeffs=[(0, zeta * omega * Fr(-1)), (1, 1)]))
+        assert all([int(c) == 0 for c in tmp.coeffs])
 
         proof_w_zeta = exp_tau(poly_w_zeta, taus)
         proof_w_zetaw = exp_tau(poly_w_zetaw, taus)

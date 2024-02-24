@@ -36,6 +36,16 @@ pub struct Polynomial {
     gf: GF,
 }
 
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct SparsePolynomial {
+    #[pyo3(get)]
+    coeffs: Vec<(usize, GFElement)>,
+    // evals: Option<Vec<GFElement>>,
+    #[pyo3(get)]
+    gf: GF,
+}
+
 #[derive(Clone, Debug)]
 pub enum PolynomialOrGFElement {
     Polynomial(Polynomial),
@@ -58,7 +68,10 @@ impl Polynomial {
         let coeffs = match coeffs {
             Some(coeffs) => {
                 let l = coeffs.len();
-                let n = 2usize.pow((l - 1).ilog2() + 1);
+                let n = match l {
+                    1 => 1,
+                    _ => 2usize.pow((l - 1).ilog2() + 1),
+                };
                 let mut result = Vec::new();
                 for coeff in coeffs {
                     match coeff {
@@ -455,6 +468,32 @@ impl Polynomial {
         // self = Polynomial(self._p, coeffs=coeffs)
     }
 
+    fn __divmod__(&mut self, other: &SparsePolynomial) -> PyResult<(Polynomial, Polynomial)> {
+        let mut q = self.coeffs()?;
+        let mut r = self.coeffs()?;
+        let n = self.degree()?;
+        let (max_idx, max_coeff) = &other.coeffs[other.coeffs.len() - 1];
+        for idx in (*max_idx..n + 1).rev() {
+            let k = r[idx].__truediv__(&max_coeff)?;
+            q[idx - max_idx] = k.clone();
+            for (j, c) in other.coeffs[0..other.coeffs.len() - 1].iter().rev() {
+                r[idx - max_idx + j] = r[idx - max_idx + j].__sub__(&k.__mul__(&c)?)?;
+            }
+        }
+        let q = q[0..n - max_idx + 1]
+            .into_iter()
+            .map(|x| BigIntOrGFElement::GFElement(x.clone()))
+            .collect();
+        let r = r[0..*max_idx]
+            .into_iter()
+            .map(|x| BigIntOrGFElement::GFElement(x.clone()))
+            .collect();
+        Ok((
+            Polynomial::new(self.gf.clone(), Some(q), None)?,
+            Polynomial::new(self.gf.clone(), Some(r), None)?,
+        ))
+    }
+
     #[getter]
     fn coeffs(&mut self) -> PyResult<Vec<GFElement>> {
         self.calc_coeffs_if_necessary()?;
@@ -558,7 +597,10 @@ impl Polynomial {
             );
         }
         let result = self.fft(evals, &omega_invs)?;
-        Ok(result.par_iter().map(|x| x.__mul__(&ninv).unwrap()).collect())
+        Ok(result
+            .par_iter()
+            .map(|x| x.__mul__(&ninv).unwrap())
+            .collect())
     }
 
     fn prepare_operation(&mut self, other: &mut Self) -> PyResult<()> {
@@ -683,5 +725,46 @@ impl<'a> FromPyObject<'a> for PolynomialOrGFElement {
         } else {
             Err(PyValueError::new_err("Invalid type"))
         }
+    }
+}
+
+#[pymethods]
+impl SparsePolynomial {
+    #[new]
+    fn new(
+        gf: GF,
+        coeffs: Vec<(usize, BigIntOrGFElement)>,
+        // evals: Option<Vec<BigIntOrGFElement>>,
+    ) -> Self {
+        let mut coeffs: Vec<(usize, GFElement)> = coeffs
+            .iter()
+            .map(|(i, c)| match c {
+                BigIntOrGFElement::BigInt(c) => (*i, GFElement::new(c.clone(), gf.clone(), false)),
+                BigIntOrGFElement::GFElement(c) => (*i, c.clone()),
+            })
+            .collect();
+        coeffs.sort_by(|a, b| a.0.cmp(&b.0));
+        Self { gf, coeffs }
+    }
+
+    fn __repr__(&self) -> PyResult<String> {
+        let mut res = Vec::new();
+        for (i, c) in &self.coeffs {
+            if c.__eq__(self.gf.zero()) {
+                continue;
+            }
+            if *i == 0 {
+                res.push(c.__str__());
+            } else if c.__eq__(self.gf.one()) {
+                res.push(format!("x^{}", i));
+            } else {
+                res.push(format!("{} * x^{}", c.__str__(), i));
+            }
+        }
+        let mut ret = res.join(" + ");
+        if ret.len() > 1024 {
+            ret = ret[..1024].to_string() + " ...";
+        }
+        Ok(format!("{} in {}", ret, self.gf.__str__()))
     }
 }

@@ -11,7 +11,7 @@ install-dev:
 
 .PHONY: test
 test: install-dev
-	pytest tests
+	pytest tests -vv
 
 .PHONY: test-data
 test-data: zkey vkey wtns

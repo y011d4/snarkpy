@@ -1,7 +1,7 @@
 import pytest
 
 from snarkpy.field import GF, GFElement
-from snarkpy.polynomial import Polynomial
+from snarkpy.polynomial import Polynomial, SparsePolynomial
 
 
 class TestPolynomial:
@@ -68,6 +68,53 @@ class TestPolynomial:
         actual = poly.extend(4)
         assert actual.coeffs == [self.gf(1), self.gf(1), self.gf(0), self.gf(0)]
 
+    def test_divmod(self) -> None:
+        f = Polynomial(self.gf, coeffs=[-1, 0, 0, 1])
+        g = SparsePolynomial(self.gf, coeffs=[(0, -1), (1, 1)])
+        actual = divmod(f, g)
+        assert actual[0].coeffs == [
+            self.gf(1),
+            self.gf(1),
+            self.gf(1),
+            self.gf(0),
+        ]
+        assert actual[1].coeffs == [
+            self.gf(0),
+        ]
+        f = Polynomial(self.gf, coeffs=[-1, 0, 1])
+        g = SparsePolynomial(self.gf, coeffs=[(0, 1), (1, 1)])
+        actual = divmod(f, g)
+        assert actual[0].coeffs == [
+            self.gf(-1),
+            self.gf(1),
+        ]
+        assert actual[1].coeffs == [
+            self.gf(0),
+        ]
+        f = Polynomial(self.gf, coeffs=[8, 5, 5, 4])
+        g = SparsePolynomial(self.gf, coeffs=[(0, 1), (1, 4)])
+        actual = divmod(f, g)
+        assert actual[0].coeffs == [
+            self.gf(1),
+            self.gf(1),
+            self.gf(1),
+            self.gf(0),
+        ]
+        assert actual[1].coeffs == [
+            self.gf(7),
+        ]
+        f = Polynomial(self.gf, coeffs=[5, 0, 2, 1])
+        g = SparsePolynomial(self.gf, coeffs=[(0, 4), (1, -1), (2, 1)])
+        actual = divmod(f, g)
+        assert actual[0].coeffs == [
+            self.gf(3),
+            self.gf(1),
+        ]
+        assert actual[1].coeffs == [
+            self.gf(-7),
+            self.gf(-1),
+        ]
+
     def test_get_evals(self) -> None:
         poly = Polynomial(self.gf, coeffs=[1, 1, 1, 1])
         assert poly.evals == [self.gf(4), self.gf(0), self.gf(0), self.gf(0)]
@@ -76,3 +123,16 @@ class TestPolynomial:
         poly = Polynomial(self.gf, evals=[4, 0, 0, 0])
         assert poly.coeffs == [self.gf(1), self.gf(1), self.gf(1), self.gf(1)]
 
+
+class TestSparsePolynomial:
+    def setup_method(self) -> None:
+        self.p = 65537
+        self.gf = GF(self.p, 2**17)
+
+    def test_init(self) -> None:
+        poly = SparsePolynomial(self.gf, coeffs=[(5, 10), (1, 20), (0, 30)])
+        assert poly.coeffs == [(0, self.gf(30)), (1, self.gf(20)), (5, self.gf(10))]
+
+    def test_repr(self) -> None:
+        poly = SparsePolynomial(self.gf, coeffs=[(0, 10), (1, 20), (5, 30)])
+        assert repr(poly) == "10 + 20 * x^1 + 30 * x^5 in F_65537"

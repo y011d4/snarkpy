@@ -3,7 +3,7 @@ mod hash;
 mod polynomial;
 use crate::field::{GFElement, GF};
 use crate::hash::keccak as _keccak;
-use crate::polynomial::Polynomial;
+use crate::polynomial::{Polynomial, SparsePolynomial};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -31,6 +31,7 @@ fn register_field_module(py: Python, parent_module: &PyModule) -> PyResult<()> {
 fn register_polynomial_module(py: Python, parent_module: &PyModule) -> PyResult<()> {
     let polynomial_module = PyModule::new(py, "polynomial")?;
     polynomial_module.add_class::<Polynomial>()?;
+    polynomial_module.add_class::<SparsePolynomial>()?;
     parent_module.add_submodule(polynomial_module)?;
     Ok(())
 }
