@@ -16,6 +16,15 @@ test: install-dev
 .PHONY: test-data
 test-data: zkey vkey wtns
 
+.PHONY: clean
+clean:
+	rm -f circom
+	rm -f ptau
+	rm -rf circuits
+	rm -f zkey
+	rm -f vkey
+	rm -f wtns
+
 circom:
 	wget https://github.com/iden3/circom/releases/latest/download/circom-linux-amd64 -O circom
 	chmod u+x circom
