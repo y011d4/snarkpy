@@ -796,7 +796,7 @@ impl<'a> FromPyObject<'a> for PolynomialOrGFElement {
 #[pymethods]
 impl SparsePolynomial {
     #[new]
-    fn new(
+    pub fn new(
         gf: GF,
         coeffs: Vec<(usize, BigIntOrGFElement)>,
         // evals: Option<Vec<BigIntOrGFElement>>,

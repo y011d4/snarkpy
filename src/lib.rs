@@ -1,9 +1,11 @@
 mod field;
 mod hash;
 mod polynomial;
-use crate::field::{GFElement, GF, GFPolynomial, GFPolynomialElement};
+mod elliptic_curve;
+use crate::field::{GFElement, GFPolynomial, GFPolynomialElement, GF};
 use crate::hash::keccak as _keccak;
 use crate::polynomial::{Polynomial, SparsePolynomial};
+use crate::elliptic_curve::{BN128, BN128Element};
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -38,10 +40,19 @@ fn register_polynomial_module(py: Python, parent_module: &PyModule) -> PyResult<
     Ok(())
 }
 
+fn register_elliptic_curve_module(py: Python, parent_module: &PyModule) -> PyResult<()> {
+    let field_module = PyModule::new(py, "elliptic_curve")?;
+    field_module.add_class::<BN128>()?;
+    field_module.add_class::<BN128Element>()?;
+    parent_module.add_submodule(field_module)?;
+    Ok(())
+}
+
 #[pymodule]
 fn _snarkpy(py: Python, m: &PyModule) -> PyResult<()> {
     register_hash_module(py, m)?;
     register_field_module(py, m)?;
     register_polynomial_module(py, m)?;
+    register_elliptic_curve_module(py, m)?;
     Ok(())
 }

@@ -54,7 +54,7 @@ pub struct RInfo {
 #[pyclass]
 #[derive(Clone, Debug, PartialEq)]
 pub struct GF {
-    p: Integer,
+    pub p: Integer,
     // r: BigInt,
     // r_bits: u64,
     // r_mask: Integer,
@@ -64,11 +64,11 @@ pub struct GF {
 }
 
 #[pyclass]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct GFElement {
     #[pyo3(get)]
     pub gf: GF,
-    value: Integer,
+    pub value: Integer,
 }
 
 #[derive(Clone, Debug)]
@@ -94,7 +94,7 @@ pub struct GFPolynomialElement {
 #[pymethods]
 impl GF {
     #[new]
-    fn new(p: BigInt, r: BigInt) -> PyResult<Self> {
+    pub fn new(p: BigInt, r: BigInt) -> PyResult<Self> {
         // let integer_p = bigint_to_integer(&p);
         let p = bigint_to_integer(&p);
         let cache_key = &p;
@@ -288,7 +288,7 @@ impl GFElement {
         })
     }
 
-    fn __invert__(&self) -> Self {
+    pub fn __invert__(&self) -> Self {
         GFElement {
             value: self.gf.inv(&self.value),
             gf: self.gf.clone(),
@@ -459,7 +459,7 @@ impl GF {
     }
 }
 
-fn integer_to_bigint(value: &Integer) -> BigInt {
+pub fn integer_to_bigint(value: &Integer) -> BigInt {
     let mut value = value.clone();
     let mut sign = 1;
     if value < Integer::ZERO {
@@ -503,7 +503,7 @@ fn bigint_to_integer(value: &BigInt) -> Integer {
 #[pymethods]
 impl GFPolynomial {
     #[new]
-    fn new(gf: GF, modulus: SparsePolynomial) -> PyResult<Self> {
+    pub fn new(gf: GF, modulus: SparsePolynomial) -> PyResult<Self> {
         // let integer_p = bigint_to_integer(&p);
         Ok(Self { gf, modulus })
     }
@@ -525,7 +525,7 @@ impl GFPolynomial {
         Ok(format!("F_{}^{}", self.gf.p, self.modulus.degree()))
     }
 
-    fn one(&self) -> GFPolynomialElement {
+    pub fn one(&self) -> GFPolynomialElement {
         GFPolynomialElement {
             value: Polynomial::new(
                 self.gf.clone(),
