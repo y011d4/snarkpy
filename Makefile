@@ -3,7 +3,8 @@ all: install
 
 .PHONY: install
 install:
-	maturin develop --release
+	maturin build --release
+	pip3 install target/wheels/*.whl
 
 .PHONY: install-dev
 install-dev:
