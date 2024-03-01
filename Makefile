@@ -3,8 +3,8 @@ all: install
 
 .PHONY: install
 install:
-	maturin build --release
-	pip3 install target/wheels/*.whl
+	maturin build --release --out dist
+	pip3 install snarkpy --find-links dist
 
 .PHONY: install-dev
 install-dev:
