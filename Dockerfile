@@ -13,4 +13,6 @@ RUN bash -c "source $HOME/.cargo/env && make install"
 FROM python:3.11-slim-buster as runner
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin/snarkpy /usr/local/bin/snarkpy
+RUN mkdir /work
+WORKDIR /work
 CMD python

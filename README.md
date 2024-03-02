@@ -20,6 +20,12 @@ source venv/bin/activate
 make install
 ```
 
+If you don't want to install locally, you can also use docker image:
+
+```sh
+docker run --rm -v $PWD:/work -it ghcr.io/y011d4/snarkpy:latest bash
+```
+
 ## Usage
 
 First, prepare `circuit_final.zkey`, `witness.wtns` and `verification_key.json` by referring to the [README in snarkjs](https://github.com/iden3/snarkjs).
