@@ -1,14 +1,11 @@
 name: docker
 
 on:
-  workflow_run:
-    workflows: ["CI"]
+  push:
     branches:
       - main
     tags:
-      - '*'
-    types:
-      - completed
+      - "v[0-9]+.[0-9]+.[0-9]+"
 
 env:
   REGISTRY: ghcr.io
@@ -36,6 +33,9 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=tag
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
